@@ -608,6 +608,7 @@ ClassInfo getClassInfo(_Unwind_Exception* exceptionObject, const(ubyte)* current
         Error e = cast(Error)ehobject;
         if (e is null || (cast(Error)ehn.object) !is null)
         {
+            currentLsd = ehn.languageSpecificData;
             ehobject = ehn.object;
         }
     }
