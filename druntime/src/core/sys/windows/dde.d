@@ -171,8 +171,8 @@ debug (WindowsUnitTest) {
             assert (_bf == 0xCA);
 
             assert (reserved == 10);
-            assert (fBusy == true);
-            assert (fAck == true);
+            assert (fBusy);
+            assert (fAck);
 
             reserved = 43;
             assert (_bf == 0xEB);
@@ -197,7 +197,7 @@ debug (WindowsUnitTest) {
             assert (_bf == 0xAD80);
 
             assert (unused == 3456);
-            assert (fRelease == true);
+            assert (fRelease);
             assert (fReserved == 2);
 
             unused = 2109;

@@ -1461,8 +1461,8 @@ void test10178()
 {
     struct S { static int count; }
     S s;
-    assert((s.tupleof == s.tupleof) == true);
-    assert((s.tupleof != s.tupleof) == false);
+    assert(s.tupleof == s.tupleof);
+    assert(!(s.tupleof != s.tupleof));
 
     S getS()
     {

@@ -72,5 +72,5 @@ unittest
     TestStruct[] b = [TestStruct(5)];
     TestStruct[] c = [TestStruct(6)];
     assert(_adEq2(*cast(void[]*)&b, *cast(void[]*)&c, typeid(TestStruct[])) == false);
-    assert(_adEq2(*cast(void[]*)&b, *cast(void[]*)&b, typeid(TestStruct[])) == true);
+    assert(_adEq2(*cast(void[]*)&b, *cast(void[]*)&b, typeid(TestStruct[])));
 }

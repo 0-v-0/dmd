@@ -112,7 +112,7 @@ private template canBitwiseHash(T)
     else static if (is(T E : E[]))
     {
         static if (__traits(isStaticArray, T))
-            enum canBitwiseHash = (T.length == 0) || .canBitwiseHash!E;
+            enum canBitwiseHash = T.length == 0 || .canBitwiseHash!E;
         else
             enum canBitwiseHash = false;
     }
@@ -274,7 +274,7 @@ size_t hashOf(T)(scope const T val) if (__traits(isScalar, T) && !is(T == __vect
     else
     {
         static assert(__traits(isFloating, T));
-        auto data = coalesceFloat(val);
+        const data = coalesceFloat(val);
         static if (T.sizeof == float.sizeof && T.mant_dig == float.mant_dig)
             return *cast(const uint*) &data;
         else static if (T.sizeof == double.sizeof && T.mant_dig == double.mant_dig)
@@ -386,14 +386,14 @@ if (is(T == __vector)) // excludes enum types
 
 //typeof(null) hash. CTFE supported
 @trusted @nogc nothrow pure
-size_t hashOf(T)(scope const T val) if (!is(T == enum) && is(T : typeof(null)))
+size_t hashOf(T : typeof(null))(scope const T) if (!is(T == enum))
 {
     return 0;
 }
 
 //typeof(null) hash. CTFE supported
 @trusted @nogc nothrow pure
-size_t hashOf(T)(scope const T val, size_t seed) if (!is(T == enum) && is(T : typeof(null)))
+size_t hashOf(T : typeof(null))(scope const T, size_t seed) if (!is(T == enum))
 {
     return hashOf(size_t(0), seed);
 }

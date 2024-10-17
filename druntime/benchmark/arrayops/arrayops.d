@@ -23,7 +23,7 @@ float[6] getLatencies(T, string op)()
             c[] = 2;
             __gshared T s = 2; // scalar, use __gshared to avoid const-folding
             auto sw = StopWatch(AutoStart.yes);
-            foreach (off; size_t(0) .. size_t(64))
+            foreach (size_t off; 0 .. 64)
             {
                 off = off * len + off;
                 enum op = op
@@ -59,7 +59,7 @@ float[4] getThroughput(T, string op)()
             c[] = 2;
             __gshared T s = 2; // scalar, use __gshared to avoid const-folding
             auto sw = StopWatch(AutoStart.yes);
-            foreach (off; size_t(0) .. size_t(64))
+            foreach (size_t off; 0 .. 64)
             {
                 off = off * len + off;
                 enum op = op
@@ -67,7 +67,7 @@ float[4] getThroughput(T, string op)()
                     .replace("a", "a[off .. off + len]")
                     .replace("b", "b[off .. off + len]")
                     .replace("c", "c[off .. off + len]");
-                mixin(op ~ ";");
+                mixin(op, ";");
             }
             immutable nsecs = sw.peek.total!"nsecs";
             runMasked({latency = min(latency, nsecs);});

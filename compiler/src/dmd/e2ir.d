@@ -3554,7 +3554,7 @@ elem* toElem(Expression e, ref IRState irs)
 
     elem* visitDelete(DeleteExp de)
     {
-        Type tb;
+        Type tb = void;
 
         //printf("DeleteExp.toElem()\n");
         if (de.e1.op == EXP.index)

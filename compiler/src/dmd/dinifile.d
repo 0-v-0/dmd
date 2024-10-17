@@ -210,9 +210,8 @@ bool parseConfFile(ref StringTable!(char*) environment, const(char)[] filename, 
     OutBuffer buf;
     bool eof = false;
     int lineNum = 0;
-    for (size_t i = 0; i < buffer.length && !eof; i++)
+    Lstart: for (size_t i = 0; i < buffer.length && !eof; i++)
     {
-    Lstart:
         const linestart = i;
         for (; i < buffer.length; i++)
         {
@@ -223,10 +222,7 @@ bool parseConfFile(ref StringTable!(char*) environment, const(char)[] filename, 
             case '\n':
                 // Skip if it was preceded by '\r'
                 if (i && buffer[i - 1] == '\r')
-                {
-                    i++;
-                    goto Lstart;
-                }
+                    continue Lstart;
                 break;
             case 0:
             case 0x1A:

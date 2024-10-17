@@ -137,7 +137,7 @@ void atomicStore(MemoryOrder ms = MemoryOrder.seq, T, V)(ref T val, V newval) pu
 void atomicStore(MemoryOrder ms = MemoryOrder.seq, T, V)(ref shared T val, V newval) pure nothrow @nogc @trusted
     if (!is(T == class))
 {
-    static if (is (V == shared U, U))
+    static if (is(V == shared U, U))
         alias Thunk = U;
     else
     {
@@ -355,7 +355,7 @@ template cas(MemoryOrder succ = MemoryOrder.seq, MemoryOrder fail = MemoryOrder.
                           V1.stringof ~ "* ifThis` would violate shared.");
             alias Thunk1 = V1;
         }
-        static if (is (V2 == shared U2, U2))
+        static if (is(V2 == shared U2, U2))
             alias Thunk2 = U2;
         else
         {
@@ -481,7 +481,7 @@ bool casWeak(MemoryOrder succ = MemoryOrder.seq,MemoryOrder fail = MemoryOrder.s
     if (!is(T == class) && (is(T : V1) || is(shared T : V1)))
 in (atomicPtrIsProperlyAligned(here), "Argument `here` is not properly aligned")
 {
-    static if (is (V1 == shared U1, U1))
+    static if (is(V1 == shared U1, U1))
         alias Thunk1 = U1;
     else
     {
@@ -965,10 +965,10 @@ version (CoreUnittest)
 
         shared(size_t) i;
 
-        atomicOp!"+="(i, cast(size_t) 1);
+        atomicOp!"+="(i, size_t(1));
         assert(i == 1);
 
-        atomicOp!"-="(i, cast(size_t) 1);
+        atomicOp!"-="(i, size_t(1));
         assert(i == 0);
 
         shared float f = 0.1f;

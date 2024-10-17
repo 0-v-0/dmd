@@ -560,7 +560,7 @@ else version (CRuntime_UClibc)
 }
 else
 {
-    static assert(false, "Unsupported platform");
+    static assert(0, "Unsupported platform");
 }
 
 pure unittest
