@@ -101,6 +101,7 @@ enum TOK : ubyte
     dot,
     comma,
     question,
+    coalesce,
     andAnd,
     orOr,
 
@@ -376,6 +377,7 @@ enum EXP : ubyte
     dot,
     comma,
     question,
+    coalesce,
     andAnd,
     orOr,
     prePlusPlus,
@@ -823,6 +825,7 @@ extern (C++) struct Token
         TOK.plusPlus: "++",
         TOK.minusMinus: "--",
         TOK.question: "?",
+        TOK.coalesce: "??",
         TOK.variable: "var",
         TOK.addAssign: "+=",
         TOK.minAssign: "-=",

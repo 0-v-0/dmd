@@ -1275,7 +1275,13 @@ class Lexer
                 return;
             case '?':
                 p++;
-                t.value = TOK.question;
+                if (*p == '?')
+                {
+                    p++;
+                    t.value = TOK.coalesce;
+                }
+                else
+                    t.value = TOK.question;
                 return;
             case ',':
                 p++;
