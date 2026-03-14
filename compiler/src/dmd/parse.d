@@ -9390,6 +9390,12 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
             auto e2 = parseCondExp();
             e = new AST.CondExp(loc, e, e1, e2);
         }
+        if (token.value == TOK.coalesce)
+        {
+            nextToken();
+            auto e2 = parseExpression();
+            e = new AST.CondExp(loc, e, e.syntaxCopy(), e2);
+        }
         return e;
     }
 
