@@ -85,7 +85,7 @@ BOOL IsEqualGUID(GUID rguid1, GUID rguid2) {
 extern (Windows) BOOL IsEqualGUID(
   REFGUID rguid1,
   REFGUID rguid2
-);
+) @nogc;
 
 alias IsEqualIID = IsEqualGUID;
 alias IsEqualCLSID = IsEqualGUID;
@@ -102,7 +102,7 @@ enum STDMSHLFLAGS {
     SMEXF_HANDLER
 }
 
-extern(Windows) {
+extern(Windows) @nogc {
     alias LPFNGETCLASSOBJECT = HRESULT function(REFCLSID, REFIID, PVOID*);
     alias LPFNCANUNLOADNOW = HRESULT function();
 
