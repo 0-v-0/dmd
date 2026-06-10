@@ -1,4 +1,4 @@
-TESTS := bug18193
+TESTS := bug18193 bug17154
 
 include ../common.mak
 
