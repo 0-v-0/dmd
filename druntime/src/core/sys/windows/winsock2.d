@@ -41,6 +41,33 @@ enum int FIONBIO =       cast(int)(IOC_IN | ((uint.sizeof & IOCPARM_MASK) << 16)
 enum NI_MAXHOST = 1025;
 enum NI_MAXSERV = 32;
 
+enum: int
+{
+    FD_READ_BIT = 0,
+    FD_WRITE_BIT = 1,
+    FD_OOB_BIT = 2,
+    FD_ACCEPT_BIT = 3,
+    FD_CONNECT_BIT = 4,
+    FD_CLOSE_BIT = 5,
+    FD_QOS_BIT = 6,
+    FD_GROUP_QOS_BIT = 7,
+    FD_ROUTING_INTERFACE_CHANGE_BIT = 8,
+    FD_ADDRESS_LIST_CHANGE_BIT = 9,
+    FD_MAX_EVENTS = 10,
+
+    FD_READ = 1 << FD_READ_BIT,
+    FD_WRITE = 1 << FD_WRITE_BIT,
+    FD_OOB = 1 << FD_OOB_BIT,
+    FD_ACCEPT = 1 << FD_ACCEPT_BIT,
+    FD_CONNECT = 1 << FD_CONNECT_BIT,
+    FD_CLOSE = 1 << FD_CLOSE_BIT,
+    FD_QOS = 1 << FD_QOS_BIT,
+    FD_GROUP_QOS = 1 << FD_GROUP_QOS_BIT,
+    FD_ROUTING_INTERFACE_CHANGE = 1 << FD_ROUTING_INTERFACE_CHANGE_BIT,
+    FD_ADDRESS_LIST_CHANGE = 1 << FD_ADDRESS_LIST_CHANGE_BIT,
+    FD_ALL_EVENTS = (1 << FD_MAX_EVENTS) - 1,
+}
+
 @nogc
 {
 int WSAStartup(ushort wVersionRequested, LPWSADATA lpWSAData);
