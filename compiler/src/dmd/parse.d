@@ -5111,57 +5111,66 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                     if (udas)
                         error("user-defined attributes not allowed for `alias` declarations");
 
-                    auto t = parseBasicType();
-                    t = parseTypeSuffixes(t);
-                    if (token.value == TOK.identifier)
+                    if (isManifestAliasRhs(token.value))
                     {
-                        error("unexpected identifier `%s` after `%s`",
-                            token.ident.toChars(), t.toChars());
-                        nextToken();
+                        auto e = parseAssignExp();
+                        auto init = new AST.ExpInitializer(loc, e);
+                        v = new AST.VarDeclaration(loc, null, ident, init, STC.manifest);
                     }
-                    else if (token.value == TOK.leftParenthesis)
+                    else
                     {
-                        // function type:
-                        // StorageClasses Type ( Parameters ) MemberFunctionAttributes
-                        auto parameterList = parseParameterList(null);
-                        udas = null;
-                        parseStorageClasses(storage_class, link, setAlignment, ealign, udas, linkloc);
-                        if (udas)
-                            error("user-defined attributes not allowed for `alias` declarations");
-
-                        attributesAppended = true;
-                        // Note: method types can have a TypeCtor attribute
-                        storage_class = appendStorageClass(storage_class, funcStc);
-                        t = new AST.TypeFunction(parameterList, t, link, storage_class);
-                    }
-
-                    // Disallow meaningless storage classes on type aliases
-                    if (storage_class)
-                    {
-                        // Don't raise errors for STC that are part of a function/delegate type, e.g.
-                        // `alias F = ref pure nothrow @nogc @safe int function();`
-                        const remStc = t.isTypeFunction ?
-                            storage_class & ~(STC.FUNCATTR | STC.TYPECTOR) : {
-                            auto tp = t.isTypePointer;
-                            const isFuncType = (tp && tp.next.isTypeFunction) || t.isTypeDelegate;
-                            return isFuncType ? (storage_class & ~STC.FUNCATTR) : storage_class;
-                        }();
-
-                        if (remStc)
+                        auto t = parseBasicType();
+                        t = parseTypeSuffixes(t);
+                        if (token.value == TOK.identifier)
                         {
-                            OutBuffer buf;
-                            AST.stcToBuffer(buf, remStc);
-                            // @@@DEPRECATED_2.103@@@
-                            // Deprecated in 2020-07, can be made an error in 2.103
-                            eSink.deprecation(token.loc, "storage class `%s` has no effect in type aliases", buf.peekChars());
+                            error("unexpected identifier `%s` after `%s`",
+                                token.ident.toChars(), t.toChars());
+                            nextToken();
                         }
-                    }
+                        else if (token.value == TOK.leftParenthesis)
+                        {
+                            // function type:
+                            // StorageClasses Type ( Parameters ) MemberFunctionAttributes
+                            auto parameterList = parseParameterList(null);
+                            udas = null;
+                            parseStorageClasses(storage_class, link, setAlignment, ealign, udas, linkloc);
+                            if (udas)
+                                error("user-defined attributes not allowed for `alias` declarations");
 
-                    v = new AST.AliasDeclaration(loc, ident, t);
+                            attributesAppended = true;
+                            // Note: method types can have a TypeCtor attribute
+                            storage_class = appendStorageClass(storage_class, funcStc);
+                            t = new AST.TypeFunction(parameterList, t, link, storage_class);
+                        }
+
+                        // Disallow meaningless storage classes on type aliases
+                        if (storage_class)
+                        {
+                            // Don't raise errors for STC that are part of a function/delegate type, e.g.
+                            // `alias F = ref pure nothrow @nogc @safe int function();`
+                            const remStc = t.isTypeFunction ?
+                                storage_class & ~(STC.FUNCATTR | STC.TYPECTOR) : {
+                                auto tp = t.isTypePointer;
+                                const isFuncType = (tp && tp.next.isTypeFunction) || t.isTypeDelegate;
+                                return isFuncType ? (storage_class & ~STC.FUNCATTR) : storage_class;
+                            }();
+
+                            if (remStc)
+                            {
+                                OutBuffer buf;
+                                AST.stcToBuffer(buf, remStc);
+                                // @@@DEPRECATED_2.103@@@
+                                // Deprecated in 2020-07, can be made an error in 2.103
+                                eSink.deprecation(token.loc, "storage class `%s` has no effect in type aliases", buf.peekChars());
+                            }
+                        }
+
+                        v = new AST.AliasDeclaration(loc, ident, t);
+                    }
                 }
                 if (!attributesAppended)
                     storage_class = appendStorageClass(storage_class, funcStc);
-                v.storage_class = storage_class;
+                v.storage_class |= storage_class;
 
                 s = v;
                 if (tpl)
@@ -5214,6 +5223,44 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
 
         // alias StorageClasses type ident;
         return null;
+    }
+
+    private static bool isManifestAliasRhs(TOK tok) pure nothrow @safe
+    {
+        switch (tok)
+        {
+        case TOK.int32Literal:
+        case TOK.uns32Literal:
+        case TOK.int64Literal:
+        case TOK.uns64Literal:
+        case TOK.int128Literal:
+        case TOK.uns128Literal:
+        case TOK.float32Literal:
+        case TOK.float64Literal:
+        case TOK.float80Literal:
+        case TOK.imaginary32Literal:
+        case TOK.imaginary64Literal:
+        case TOK.imaginary80Literal:
+        case TOK.null_:
+        case TOK.true_:
+        case TOK.false_:
+        case TOK.charLiteral:
+        case TOK.wcharLiteral:
+        case TOK.dcharLiteral:
+        case TOK.string_:
+        case TOK.interpolated:
+        case TOK.hexadecimalString:
+        case TOK.file:
+        case TOK.fileFullPath:
+        case TOK.line:
+        case TOK.moduleString:
+        case TOK.functionString:
+        case TOK.prettyFunction:
+            return true;
+
+        default:
+            return false;
+        }
     }
 
     private AST.Dsymbol parseFunctionLiteral()
