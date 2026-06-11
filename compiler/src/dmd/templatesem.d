@@ -3670,18 +3670,40 @@ bool needsCodegen(TemplateInstance ti)
     assert(ti is ti.inst);
 
     /* Hack for suppressing linking errors against template instances
-    * of `_d_arrayliteralTX` (e.g. `_d_arrayliteralTX!(int[])`).
-    *
-    * This happens, for example, when a lib module is compiled with `preview=dip1000` and
-    * the array literal is placed on stack instead of using the lowering. In this case,
-    * if the root module is compiled without `preview=dip1000`, the compiler will consider
-    * the template already instantiated within the lib module, and thus skip the codegen for it
-    * in the root module object file, thinking that the linker will find the instance in the lib module.
-    *
-    * To bypass this edge case, we always do codegen for `_d_arrayliteralTX` template instances,
-    * even if an instance already exists in non-root module.
-    */
-    if (ti.inst && ti.inst.name == Id._d_arrayliteralTX)
+     * of `_d_arrayliteralTX` (e.g. `_d_arrayliteralTX!(int[])`) and
+     * `core.internal.array.equality.__equals`.
+     *
+     * In both cases, the frontend can decide that an already-seen non-root
+     * instantiation will satisfy later references from root modules, even
+     * though the needed symbol is not guaranteed to be emitted into a linked
+     * object. This was observed for `_d_arrayliteralTX` with differing
+     * `-preview=dip1000` settings and for `std.signals`-based struct equality
+     * instantiations reduced from issue 20668.
+     *
+     * To bypass these edge cases, always do codegen for those template
+     * instances, even if an instance already exists in a non-root module.
+     */
+    static bool alwaysEmitHelper(TemplateInstance ti)
+    {
+        if (!ti.inst)
+            return false;
+
+        if (ti.inst.name == Id._d_arrayliteralTX)
+            return true;
+
+        if (ti.inst.name != Id.__equals)
+            return false;
+
+        auto mod = ti.inst.getModule();
+        auto internalPkg = mod && mod.parent ? mod.parent.isPackage() : null;
+        auto corePkg = internalPkg && internalPkg.parent ? internalPkg.parent.isPackage() : null;
+        return mod &&
+            mod.ident.equals(Identifier.idPool("equality")) &&
+            internalPkg && internalPkg.ident.equals(Identifier.idPool("internal")) &&
+            corePkg && corePkg.ident.equals(Identifier.idPool("core"));
+    }
+
+    if (alwaysEmitHelper(ti))
     {
         return true;
     }
