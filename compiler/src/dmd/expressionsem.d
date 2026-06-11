@@ -10493,7 +10493,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             FuncDeclaration f = ve.var.isFuncDeclaration();
             if (f)
             {
-                /* Because nested functions cannot be overloaded,
+                /* For a nested function with no unresolved overload set,
                  * mark here that we took its address because castTo()
                  * may not be called with an exact match.
                  *
