@@ -1752,6 +1752,19 @@ void toCBuffer(Dsymbol s, ref OutBuffer buf, ref HdrGenState hgs)
             buf.put(" = ");
             if (stcToBuffer(buf, d.storage_class))
                 buf.put(' ');
+            if (auto vd = d.aliassym.isVarDeclaration())
+            {
+                if (vd.storage_class & STC.manifest)
+                {
+                    if (auto ei = vd._init.isExpInitializer())
+                    {
+                        ei.exp.expressionToBuffer(buf, hgs);
+                        buf.put(';');
+                        buf.writenl();
+                        return;
+                    }
+                }
+            }
             /*
                 https://issues.dlang.org/show_bug.cgi?id=23223
                 https://issues.dlang.org/show_bug.cgi?id=23222
