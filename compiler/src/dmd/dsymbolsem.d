@@ -6966,6 +6966,7 @@ void aliasSemantic(AliasDeclaration ds, Scope* sc)
     {
         auto fd = ds.aliassym.isFuncLiteralDeclaration();
         auto td = ds.aliassym.isTemplateDeclaration();
+        auto vd = ds.aliassym.isVarDeclaration();
         if (fd || td && td.literal)
         {
             if (fd && fd.semanticRun >= PASS.semanticdone)
@@ -6980,6 +6981,16 @@ void aliasSemantic(AliasDeclaration ds, Scope* sc)
             }
             else
                 return errorRet();
+        }
+
+        if (vd)
+        {
+            if (!vd.parent)
+                vd.parent = ds.parent;
+            vd.dsymbolSemantic(sc);
+            if (vd.errors)
+                return errorRet();
+            return normalRet();
         }
 
         if (ds.aliassym.isTemplateInstance())
