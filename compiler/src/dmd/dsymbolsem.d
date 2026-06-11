@@ -212,7 +212,15 @@ Dsymbol insert(Scope* _this, Dsymbol s)
     if (!scopesym.symtab)
         scopesym.symtab = new DsymbolTable();
     if (!_this.inCfile)
-        return scopesym.symtabInsert(s);
+    {
+        if (Dsymbol inserted = scopesym.symtabInsert(s))
+            return inserted;
+
+        Dsymbol s2 = scopesym.symtabLookup(s, s.ident); // s2 is existing entry
+        if (s2 && s2.overloadInsert(s))
+            return s;
+        return null;
+    }
 
     // ImportC insert
     if (!scopesym.symtabInsert(s)) // if already in table
