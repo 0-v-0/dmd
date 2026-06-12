@@ -489,6 +489,17 @@ Tarr _d_newarraymTX(Tarr : U[], T, U)(scope size_t[] dims, bool isShared=false) 
     if (dims.length == 0)
         return null;
 
+    static size_t countDimensions(A)()
+    {
+        static if (is(A == V[], V))
+            return 1 + countDimensions!V;
+        else
+            return 0;
+    }
+
+    enum expectedDims = countDimensions!Tarr;
+    assert(dims.length == expectedDims);
+
     alias UnqT = Unqual!(T);
 
     void[] __allocateInnerArray(size_t[] dims)
@@ -572,6 +583,23 @@ unittest
     int[][] a = _d_newarraymTX!(int[][], int)([2, 2]);
 
     assert(!(GC.getAttr(a.ptr) & GC.BlkAttr.NO_SCAN));
+}
+
+// https://issues.dlang.org/show_bug.cgi?id=24514
+@system unittest
+{
+    bool asserted;
+    try
+    {
+        auto a = _d_newarraymTX!(int*[][], int)([1, 1, 42]);
+        assert(0, "expected dimension count assertion");
+    }
+    catch (AssertError)
+    {
+        asserted = true;
+    }
+
+    assert(asserted);
 }
 
 /**
