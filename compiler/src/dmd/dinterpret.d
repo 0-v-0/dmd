@@ -496,7 +496,16 @@ private Expression interpretFunction(UnionExp* pue, FuncDeclaration fd, InterSta
     {
         // error, no this. Prevent segfault.
         // Here should be unreachable by the strict 'this' check in front-end.
-        error(fd.loc, "%s `%s` need `this` to access member `%s`", fd.kind, fd.toPrettyChars, fd.toErrMsg());
+        Dsymbol member = fd;
+        foreach (v; fd.outerVars)
+        {
+            if (v.needThis())
+            {
+                member = v;
+                break;
+            }
+        }
+        error(fd.loc, "%s `%s` need `this` to access member `%s`", fd.kind, fd.toPrettyChars, member.toErrMsg());
         return CTFEExp.cantexp;
     }
 
