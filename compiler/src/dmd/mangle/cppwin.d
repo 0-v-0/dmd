@@ -33,6 +33,7 @@ import dmd.globals;
 import dmd.id;
 import dmd.identifier;
 import dmd.location;
+import dmd.mangle : mangleExact;
 import dmd.mangle.cpp : isAggregateDtor, isCppOperator, CppOperator;
 import dmd.mtype;
 import dmd.common.outbuffer;
@@ -584,15 +585,16 @@ extern(D):
     {
         Dsymbol d = isDsymbol(o);
         Expression e = isExpression(o);
+        FuncDeclaration fd = d ? d.isFuncDeclaration() : null;
 
         if (d && d.isTemplateDeclaration())
             d.isTemplateDeclaration().computeOneMember();
 
-        if (d && d.isFuncDeclaration())
+        if (fd)
         {
             buf.writeByte('$');
             buf.writeByte('1');
-            mangleFunction(d.isFuncDeclaration());
+            buf.writestring(mangleExact(fd.toAliasFunc()));
         }
         else if (e && e.op == EXP.variable && (cast(VarExp)e).var.isVarDeclaration())
         {
