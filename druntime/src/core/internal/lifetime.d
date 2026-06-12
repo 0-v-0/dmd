@@ -101,6 +101,10 @@ if (!is(T == const) && !is(T == immutable) && !is(T == inout))
         // ordinary shared write that `-preview=nosharedaccess` rejects.
         emplaceInitializer(*cast(U*) &chunk);
     }
+    else static if (is(T == enum))
+    {
+        chunk = T.init;
+    }
     else static if (__traits(isZeroInit, T))
     {
         import core.stdc.string : memset;
@@ -176,6 +180,12 @@ if (!is(T == const) && !is(T == immutable) && !is(T == inout))
     testInitializer!ElaborateAndZero();
     testInitializer!ElaborateAndNonZero();
     testInitializer!LargeNonZeroUnion();
+    enum StaticArrayEnum : int[5]
+    {
+        a = [1, 2, 3, 4, 5],
+        b = [6, 7, 8, 9, 10],
+    }
+    testInitializer!StaticArrayEnum();
 
     static if (is(__vector(double[4])))
     {
