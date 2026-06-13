@@ -630,9 +630,11 @@ private extern(C++) final class Semantic2Visitor : Visitor
                 if (!e)
                     continue;
 
-                e = e.expressionSemantic(sc);
+                auto sc2 = sc.startCTFE();
+                e = e.expressionSemantic(sc2);
                 if (definitelyValueParameter(e))
                     e = e.ctfeInterpret();
+                sc2 = sc2.endCTFE();
                 if (e.op == EXP.tuple)
                 {
                     TupleExp te = cast(TupleExp)e;
