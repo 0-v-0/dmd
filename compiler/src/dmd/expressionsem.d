@@ -1200,6 +1200,16 @@ bool expressionsToString(ref OutBuffer buf, Scope* sc, Expressions* exps,
         }
 
         StringExp se = e4.toStringExp();
+        if (!se && e4.type && e4.type.implicitConvTo(Type.tstring))
+        {
+            auto es = e4.implicitCastTo(sc, Type.tstring);
+            if (es.op == EXP.error)
+                return error();
+            es = es.ctfeInterpret();
+            if (es.op == EXP.error)
+                return error();
+            se = es.toStringExp();
+        }
 
         if (se && se.type.nextOf().ty.isSomeChar)
             buf.writestring(se.toUTF8(sc).peekString());
