@@ -9586,6 +9586,28 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         {
             printf("AssertExp::semantic('%s')\n", exp.toErrMsg());
         }
+
+        if (Expression ex = unaSemantic(exp, sc))
+        {
+            result = ex;
+            return;
+        }
+
+        exp.e1 = resolveProperties(sc, exp.e1);
+        if (!exp.msg)
+        {
+            auto te = exp.e1.isTupleExp();
+            if (te && te.exps && te.exps.length == 2)
+            {
+                auto msg = resolveProperties(sc, (*te.exps)[1]);
+                if (msg.type && msg.type.implicitConvTo(Type.tstring))
+                {
+                    exp.e1 = (*te.exps)[0];
+                    exp.msg = msg;
+                }
+            }
+        }
+
         if (auto e = exp.e1.isStringExp())
         {
             // deprecated in 2.107
@@ -9839,12 +9861,6 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         }
 
         LSkip:
-        if (Expression ex = unaSemantic(exp, sc))
-        {
-            result = ex;
-            return;
-        }
-
         exp.e1 = resolveProperties(sc, exp.e1);
         // BUG: see if we can do compile time elimination of the Assert
         exp.e1 = exp.e1.optimize(WANTvalue);
