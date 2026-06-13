@@ -64,6 +64,7 @@ enum RTLSYM
 
     CALLFINALIZER,
     CALLINTERFACEFINALIZER,
+    SETSAMEMUTEX,
     ALLOCMEMORY,
     ARRAYAPPENDCD,
     ARRAYAPPENDWD,
@@ -195,6 +196,7 @@ Symbol* getRtlsym(RTLSYM i) @trusted
         case RTLSYM.MEMSETN:                symbolz(ps,FL.func,FREGSAVED,"_memsetn",  0, t); break;
         case RTLSYM.CALLFINALIZER:          symbolz(ps,FL.func,FREGSAVED,"_d_callfinalizer", 0, t); break;
         case RTLSYM.CALLINTERFACEFINALIZER: symbolz(ps,FL.func,FREGSAVED,"_d_callinterfacefinalizer", 0, t); break;
+        case RTLSYM.SETSAMEMUTEX:           symbolz(ps,FL.func,FREGSAVED,"_d_setSameMutex", 0, t); break;
         case RTLSYM.ALLOCMEMORY:            symbolz(ps,FL.func,FREGSAVED,"_d_allocmemory", 0, t); break;
         case RTLSYM.ARRAYAPPENDCD:          symbolz(ps,FL.func,FREGSAVED,"_d_arrayappendcd", 0, t); break;
         case RTLSYM.ARRAYAPPENDWD:          symbolz(ps,FL.func,FREGSAVED,"_d_arrayappendwd", 0, t); break;
