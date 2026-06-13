@@ -1292,6 +1292,7 @@ elem* toElem(Expression e, ref IRState irs)
             elem* ex = null;
             elem* ey = null;
             elem* ew = null;
+            elem* emonitor = null;
             elem* ezprefix = null;
             elem* ez = null;
 
@@ -1388,6 +1389,14 @@ elem* toElem(Expression e, ref IRState irs)
                     ey = el_bin(OPadd, TYnptr, ey, el_long(TYsize_t, cd.vthis.offset));
                     ey = el_una(OPind, TYnptr, ey);
                     ey = el_bin(OPeq, TYnptr, ey, ethis);
+                    if ((ne.type.mod & MODFlags.shared_) && !cd.isCPPclass())
+                    {
+                        emonitor = el_bin(
+                            OPcall,
+                            TYvoid,
+                            el_var(getRtlsym(RTLSYM.SETSAMEMUTEX)),
+                            el_params(el_copytree(ethis), el_copytree(ez), null));
+                    }
                 }
                 //printf("ex: "); elem_print(ex);
                 //printf("ey: "); elem_print(ey);
@@ -1399,6 +1408,15 @@ elem* toElem(Expression e, ref IRState irs)
                  *  *(ey + cd.vthis.offset) = this;
                  */
                 ey = setEthis(ne.loc, irs, ey, cd);
+                if ((ne.type.mod & MODFlags.shared_) && !cd.isCPPclass() && cd.toParentLocal().isClassDeclaration())
+                {
+                    elem* ethis = getEthis(ne.loc, irs, cd.toParentLocal());
+                    emonitor = el_bin(
+                        OPcall,
+                        TYvoid,
+                        el_var(getRtlsym(RTLSYM.SETSAMEMUTEX)),
+                        el_params(ethis, el_copytree(ez), null));
+                }
             }
 
             if (cd.vthis2)
@@ -1420,6 +1438,7 @@ elem* toElem(Expression e, ref IRState irs)
 
             e = el_combine(ex, ey);
             e = el_combine(e, ew);
+            e = el_combine(e, emonitor);
             e = el_combine(e, ezprefix);
             e = el_combine(e, ez);
         }
