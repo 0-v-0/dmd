@@ -2456,6 +2456,9 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
              */
             Scope* sc2 = sc.push();
             sc2.stc |= (dsym.storage_class & STC.FUNCATTR);
+            if (dsym.type.ty == Ttypeof)
+                // `ref typeof(expr) x` makes `x` a ref variable, not `expr` a ref-returning context.
+                sc2.stc &= ~STC.ref_;
             dsym.inuse++;
             dsym.type = dsym.type.typeSemantic(dsym.loc, sc2);
             dsym.inuse--;

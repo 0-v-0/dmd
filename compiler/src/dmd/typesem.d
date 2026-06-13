@@ -5858,6 +5858,8 @@ void resolve(Type mt, Loc loc, Scope* sc, out Expression pe, out Type pt, out Ds
          * }
          */
         Scope* sc2 = sc.push();
+        // `typeof(expr)` should inspect `expr` in a neutral context.
+        sc2.stc &= ~STC.FUNCATTR;
 
         if (!mt.exp.isTypeidExp())
             /* Treat typeof(typeid(exp)) as needing
