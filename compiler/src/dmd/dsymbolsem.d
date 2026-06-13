@@ -99,6 +99,7 @@ Scope* newScope(AggregateDeclaration _this, Scope* sc)
         sc2.explicitVisibility = false;
         sc2.aligndecl = null;
         sc2.userAttribDecl = null;
+        sc2.cppmangle = CPPMANGLE.def;
         sc2.namespace = null;
         return sc2;
     }
