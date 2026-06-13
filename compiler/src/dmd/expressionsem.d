@@ -7634,6 +7634,35 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 return;
             }
         }
+        if (auto ie = exp.e1.isIdentifierExp())
+        {
+            Dsymbol scopesym;
+            if (!sc.search(ie.loc, ie.ident, scopesym))
+            {
+                for (Scope* sc2 = sc; sc2; sc2 = sc2.enclosing)
+                {
+                    if (!sc2.scopesym)
+                        continue;
+
+                    auto withsym = sc2.scopesym.isWithScopeSymbol();
+                    if (!withsym)
+                        continue;
+
+                    if (withsym.withstate.wthis)
+                    {
+                        auto e = new VarExp(exp.e1.loc, withsym.withstate.wthis);
+                        exp.e1 = new DotIdExp(exp.e1.loc, e, ie.ident);
+                        break;
+                    }
+                    if (withsym.withstate.exp && withsym.withstate.exp.op == EXP.type)
+                    {
+                        auto t = withsym.withstate.exp.isTypeExp().type;
+                        exp.e1 = new DotIdExp(exp.e1.loc, new TypeExp(exp.e1.loc, t), ie.ident);
+                        break;
+                    }
+                }
+            }
+        }
         if (Expression ex = resolveUFCS(sc, exp))
         {
             result = ex;
@@ -7765,6 +7794,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                     result = ex;
                     return;
                 }
+
             }
 
             /* Look for e1 being a lazy parameter
