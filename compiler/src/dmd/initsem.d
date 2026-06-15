@@ -510,7 +510,34 @@ Initializer initializerSemantic(Initializer init, Scope* sc, ref Type tx, NeedIn
         if (tb.ty == Tstruct && !(ti.ty == Tstruct && tb.toDsymbol(sc) == ti.toDsymbol(sc)) && !i.exp.implicitConvTo(t))
         {
             StructDeclaration sd = tb.isTypeStruct().sym;
-            if (sd.ctor)
+            auto s = sd.aliasthis ? sd.aliasthis.sym : null;
+            if (s && s.isAliasDeclaration())
+                s = s.toAlias();
+
+            if (auto vd = s ? s.isVarDeclaration() : null)
+            {
+                auto aliasThisType = tb.aliasthisOf();
+                if (aliasThisType && i.exp.implicitConvTo(aliasThisType))
+                {
+                    if (!sd.determineSize(i.loc))
+                        return err();
+
+                    auto elements = new Expressions();
+                    auto sle = new StructLiteralExp(i.loc, sd, elements, t);
+                    if (!sd.fill(i.loc, *elements, false))
+                        return err();
+
+                    const index = sle.getFieldIndex(vd.type, vd.offset);
+                    if (index != -1)
+                    {
+                        (*sle.elements)[index] = i.exp.implicitCastTo(sc, aliasThisType);
+                        sle.type = t;
+                        i.exp = sle;
+                    }
+                }
+            }
+
+            if (!i.exp.implicitConvTo(t) && sd.ctor)
             {
                 // Rewrite as S().ctor(exp)
                 Expression e;
@@ -523,7 +550,7 @@ Initializer initializerSemantic(Initializer init, Scope* sc, ref Type tx, NeedIn
                 else
                     i.exp = e.optimize(WANTvalue);
             }
-            else if (search_function(sd, Id.opCall))
+            else if (!i.exp.implicitConvTo(t) && search_function(sd, Id.opCall))
             {
                 /* https://issues.dlang.org/show_bug.cgi?id=1547
                  *
