@@ -747,7 +747,7 @@ class TypeInfo
     @property uint flags() nothrow pure const @safe @nogc { return 0; }
 
     /// Get type information on the contents of the type; null if not available
-    const(OffsetTypeInfo)[] offTi() const { return null; }
+    @property const(OffsetTypeInfo)[] offTi() const { return null; }
     /// Run the destructor on the object and all its sub-objects
     void destroy(void* p) const {}
     /// Run the postblit on the object and all its sub-objects
@@ -961,7 +961,7 @@ class TypeInfo_Enum : TypeInfo
         assert(typeid(E).flags == 0);
     }
 
-    override const(OffsetTypeInfo)[] offTi() const { return base.offTi; }
+    override @property const(OffsetTypeInfo)[] offTi() const { return base.offTi; }
 
     @system unittest
     {

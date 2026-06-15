@@ -1151,6 +1151,18 @@ private int classFuncSemantic(ClassDeclaration cd, FuncDeclaration funcdecl,
             if (vtf.trust > TRUST.system && f.trust == TRUST.system)
                 .error(funcdecl.loc, "%s `%s` cannot override `@safe` method `%s` with a `@system` attribute", funcdecl.kind, funcdecl.toPrettyChars,
                                fdv.toPrettyChars);
+            if (vtf.isProperty != f.isProperty)
+            {
+                const(char)* baseProperty = vtf.isProperty ? "`@property` " : "";
+                const(char)* overridingProperty = f.isProperty ? "`@property` " : "";
+                .error(funcdecl.loc, "%s `%s` cannot override %smethod `%s` with %smethod `%s`",
+                    funcdecl.kind,
+                    funcdecl.toPrettyChars,
+                    baseProperty,
+                    fdv.toPrettyChars,
+                    overridingProperty,
+                    funcdecl.toPrettyChars);
+            }
 
             if (fdc.toParent() == parent)
             {
