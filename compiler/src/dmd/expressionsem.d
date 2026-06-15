@@ -11873,7 +11873,39 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         }
 
         if (auto ae = exp.e1.isArrayExp())
+        {
             markArrayExpModifiable(ae);
+
+            auto overloadAe = cast(ArrayExp) ae.syntaxCopy();
+            overloadAe.e1 = overloadAe.e1.expressionSemantic(sc);
+            overloadAe.e1 = resolveProperties(sc, overloadAe.e1);
+            if (overloadAe.e1.op == EXP.error)
+            {
+                result = overloadAe.e1;
+                return;
+            }
+            if (isAggregate(overloadAe.e1.type))
+            {
+                Expression e0;
+                overloadAe.e1 = extractSideEffect(sc, "__postref", e0, overloadAe.e1);
+                foreach (i, arg; *overloadAe.arguments)
+                    (*overloadAe.arguments)[i] = extractSideEffect(sc, "__postarg", e0, arg);
+
+                auto pre = new PreExp(exp.op == EXP.plusPlus ? EXP.prePlusPlus : EXP.preMinusMinus, exp.loc, overloadAe.syntaxCopy());
+                if (Expression eb = pre.opOverloadUnary(sc))
+                {
+                    auto tmp = copyToTemp(STC.none, "__pitmp", overloadAe.syntaxCopy());
+                    Expression ea = new DeclarationExp(exp.loc, tmp);
+                    Expression ec = new VarExp(exp.loc, tmp);
+
+                    Expression e = Expression.combine(e0, ea);
+                    e = new CommaExp(exp.loc, e, eb);
+                    e = new CommaExp(exp.loc, e, ec);
+                    result = e.expressionSemantic(sc);
+                    return;
+                }
+            }
+        }
 
         if (Expression ex = binSemantic(exp, sc))
         {
