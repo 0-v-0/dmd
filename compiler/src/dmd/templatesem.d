@@ -1408,6 +1408,21 @@ void templateInstanceSemantic(TemplateInstance tempinst, Scope* sc, ArgumentList
             td.building = false;
     }
 
+    if (!tempinst.errors)
+    {
+        if (auto existing = tempdecl.findEquivalentFunctionInstance(tempinst))
+        {
+            tempdecl.removeInstance(tempdecl_instance_idx);
+            if (target_symbol_list)
+            {
+                assert((*target_symbol_list)[target_symbol_list_idx] == tempinst);
+                target_symbol_list.remove(target_symbol_list_idx);
+                tempinst.memberOf = null;
+            }
+            tempinst.inst = existing;
+        }
+    }
+
 Laftersemantic:
     sc2.pop();
     _scope.pop();
@@ -1988,6 +2003,58 @@ private TemplateInstance findExistingInstance(TemplateDeclaration td, TemplateIn
     debug (FindExistingInstance) ++(p ? nFound : nNotFound);
     //if (p) printf("\tfound %p\n", *p); else printf("\tnot found\n");
     return p ? *p : null;
+}
+
+private bool sameInstantiatedFunction(TemplateInstance a, TemplateInstance b)
+{
+    static bool sameTextIgnoringTrailingWhitespace(const(char)* lhs, const(char)* rhs)
+    {
+        size_t ll = strlen(lhs);
+        size_t rl = strlen(rhs);
+        while (ll)
+        {
+            const c = lhs[ll - 1];
+            if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
+                break;
+            --ll;
+        }
+        while (rl)
+        {
+            const c = rhs[rl - 1];
+            if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
+                break;
+            --rl;
+        }
+        return ll == rl && memcmp(lhs, rhs, ll) == 0;
+    }
+
+    auto fa = a.aliasdecl ? a.aliasdecl.isFuncDeclaration() : null;
+    auto fb = b.aliasdecl ? b.aliasdecl.isFuncDeclaration() : null;
+    if (!fa || !fb || !fa.fbody || !fb.fbody)
+        return false;
+
+    if (fa.storage_class != fb.storage_class)
+        return false;
+
+    if (strcmp(fa.type.toChars(), fb.type.toChars()) != 0)
+        return false;
+
+    return sameTextIgnoringTrailingWhitespace(toChars(fa.fbody), toChars(fb.fbody));
+}
+
+private TemplateInstance findEquivalentFunctionInstance(TemplateDeclaration td, TemplateInstance ti)
+{
+    foreach (_, existing; cast(TemplateInstance[TemplateInstanceBox]) td.instances)
+    {
+        if (existing is ti || existing.errors)
+            continue;
+        auto root = existing.inst && existing.inst != existing ? existing.inst : existing;
+        if (root.errors)
+            continue;
+        if (sameInstantiatedFunction(root, ti))
+            return root;
+    }
+    return null;
 }
 
 /********************************************
