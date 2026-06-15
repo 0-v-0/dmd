@@ -509,6 +509,23 @@ void computeOneMember(TemplateDeclaration td)
     }
 }
 
+private DeprecatedDeclaration findDeprecatedOneMember(TemplateDeclaration td)
+{
+    if (!td || !td.members || !td.ident)
+        return null;
+
+    foreach (member; *td.members)
+    {
+        if (auto dd = cast(DeprecatedDeclaration)member)
+        {
+            Dsymbol s;
+            if (oneMembers(dd.decl, s, td.ident) && s)
+                return dd;
+        }
+    }
+    return null;
+}
+
 private void computeIsTrivialAlias(TemplateDeclaration td, Dsymbol s)
 {
     /* Set isTrivialAliasSeq if this fits the pattern:
@@ -2170,15 +2187,20 @@ void aliasInstanceSemantic(TemplateInstance tempinst, Scope* sc, TemplateDeclara
     Type ta = tempinst.tdtypes[0].isType();
     tempdecl.computeOneMember();
     auto ad = tempdecl.onemember.isAliasDeclaration();
+    auto dd = findDeprecatedOneMember(tempdecl);
 
     // Note: qualifiers can be in both 'ad.type.mod' and 'ad.storage_class'
     Declaration d = new AliasDeclaration(tempinst.loc, ttp.ident, ta.addMod(ad.type.mod));
     d.storage_class |= STC.templateparameter | ad.storage_class;
+    if (ad.isDeprecated() || dd)
+        d.storage_class |= STC.deprecated_;
+    d.depdecl = dd ? dd : ad.depdecl;
     d.dsymbolSemantic(sc);
 
     paramscope.pop();
 
     tempinst.aliasdecl = d;
+    d.checkDeprecated(tempinst.loc, sc);
 
     tempinst.semanticRun = PASS.semanticdone;
 }
@@ -2303,11 +2325,17 @@ void aliasSeqInstanceSemantic(TemplateInstance tempinst, Scope* sc, TemplateDecl
     Tuple va = tempinst.tdtypes[0].isTuple();
     Declaration d = new TupleDeclaration(tempinst.loc, ttp.ident, &va.objects);
     d.storage_class |= STC.templateparameter;
+    auto dd = findDeprecatedOneMember(tempdecl);
+    auto onemember = tempdecl.onemember;
+    if ((onemember && onemember.isDeprecated()) || dd)
+        d.storage_class |= STC.deprecated_;
+    d.depdecl = dd ? dd : (onemember ? onemember.depdecl : null);
     d.dsymbolSemantic(sc);
 
     paramscope.pop();
 
     tempinst.aliasdecl = d;
+    d.checkDeprecated(tempinst.loc, sc);
 
     tempinst.semanticRun = PASS.semanticdone;
 }

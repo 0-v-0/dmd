@@ -9771,6 +9771,15 @@ private extern(C++) class OneMemberVisitor : Visitor
     {
         Dsymbols* d = atb.include(null);
         result = oneMembers(d, *ps, ident);
+        if (result && *ps)
+        {
+            if (auto dd = cast(DeprecatedDeclaration)atb)
+            {
+                if (auto decl = (*ps).isDeclaration())
+                    decl.storage_class |= STC.deprecated_;
+                (*ps).depdecl = dd;
+            }
+        }
     }
 
     override void visit(StaticForeachDeclaration sfd)
