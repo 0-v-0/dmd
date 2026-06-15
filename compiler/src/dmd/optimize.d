@@ -85,7 +85,8 @@ Expression expandVar(int result, VarDeclaration v)
         Type tb = v.type.toBasetype();
         if (v.storage_class & STC.manifest ||
             tb.isScalar() ||
-            ((result & WANTexpand) && (tb.ty != Tsarray && tb.ty != Tstruct)))
+            // Explicit expansion is also needed for indexed/sliced static arrays.
+            ((result & WANTexpand) && tb.ty != Tstruct))
         {
             if (v._init)
             {
@@ -141,6 +142,7 @@ Expression expandVar(int result, VarDeclaration v)
                 }
                 else if (!(v.storage_class & STC.manifest) &&
                          ei.isConst() != 1 &&
+                         !(result & WANTexpand && ei.op == EXP.arrayLiteral) &&
                          ei.op != EXP.string_ &&
                          ei.op != EXP.address)
                 {
@@ -1194,7 +1196,7 @@ Expression optimize(Expression e, int result, bool keepLvalue = false)
     void visitIndex(IndexExp e)
     {
         //printf("IndexExp::optimize(result = %d) %s\n", result, e.toChars());
-        if (expOptimize(e.e1, result & WANTexpand))
+        if (expOptimize(e.e1, WANTexpand))
             return;
         Expression ex = fromConstInitializer(result, e.e1);
         // We might know $ now
