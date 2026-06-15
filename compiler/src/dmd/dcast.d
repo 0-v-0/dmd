@@ -3532,6 +3532,24 @@ Lagain:
     t1b = t1.toBasetype();
     t2b = t2.toBasetype();
 
+    if (op == EXP.question)
+    {
+        static Type pointerTypeFromNullAndStringLiteral(Expression str, Type tstr, Type tother)
+        {
+            if (tother.ty != Tnull)
+                return null;
+            auto se = str.isStringExp();
+            if (!se || !tstr.isStaticOrDynamicArray())
+                return null;
+            return tstr.nextOf().constOf().pointerTo();
+        }
+
+        if (Type tp = pointerTypeFromNullAndStringLiteral(e1, t1, t2))
+            return coerce(tp);
+        if (Type tp = pointerTypeFromNullAndStringLiteral(e2, t2, t1))
+            return coerce(tp);
+    }
+
     static bool isComplexStruct(Type t)
     {
         if (t.ty != Tstruct)
