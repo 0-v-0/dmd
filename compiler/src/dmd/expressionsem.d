@@ -14132,6 +14132,16 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 exp.type = tb2.arrayOf();
                 goto L2elem;
             }
+            if (auto se = exp.e1.isStringExp())
+            {
+                if (!se.committed && exp.e2.implicitConvTo(Type.tdchar) >= MATCH.convert)
+                {
+                    exp.e1 = exp.e1.implicitCastTo(sc, Type.tdstring);
+                    exp.e2 = exp.e2.implicitCastTo(sc, Type.tdchar);
+                    exp.type = Type.tdstring;
+                    goto L2elem;
+                }
+            }
             if (exp.e2.implicitConvTo(tb1next) >= MATCH.convert)
             {
                 exp.e2 = exp.e2.implicitCastTo(sc, tb1next);
@@ -14165,6 +14175,16 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 exp.e2 = exp.e2.implicitCastTo(sc, tb1.arrayOf());
                 exp.type = tb1.arrayOf();
                 goto L1elem;
+            }
+            if (auto se = exp.e2.isStringExp())
+            {
+                if (!se.committed && exp.e1.implicitConvTo(Type.tdchar) >= MATCH.convert)
+                {
+                    exp.e1 = exp.e1.implicitCastTo(sc, Type.tdchar);
+                    exp.e2 = exp.e2.implicitCastTo(sc, Type.tdstring);
+                    exp.type = Type.tdstring;
+                    goto L1elem;
+                }
             }
             if (exp.e1.implicitConvTo(tb2next) >= MATCH.convert)
             {
