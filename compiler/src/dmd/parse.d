@@ -3095,9 +3095,15 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                              */
                             if (storageClass & (STC.out_ | STC.ref_))
                                 error("variadic argument cannot be `out` or `ref`");
+                            param.storageClass |= STC.variadic;
                             varargs = VarArg.typesafe;
                             parameters.push(param);
                             nextToken();
+                            if (token.value == TOK.comma)
+                            {
+                                nextToken();
+                                goto L1;
+                            }
                             break;
                         }
                         parameters.push(param);
