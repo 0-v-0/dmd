@@ -63,6 +63,59 @@ alias funcLeastAsSpecialized = dmd.funcsem.leastAsSpecialized;
 enum LOG = false;
 
 /***********************************************************
+ * Break a tie between two overloads that only differ by signedness of
+ * same-width integral parameters. For signed arguments, prefer the signed
+ * overload over the unsigned one.
+ *
+ * Returns:
+ *   1  if `f` is preferred
+ *   -1 if `g` is preferred
+ *   0  if no preference applies
+ */
+private int compareIntegralSignednessPreference(FuncDeclaration f, FuncDeclaration g, ArgumentList argumentList)
+{
+    auto args = argumentList.arguments;
+    if (!args)
+        return 0;
+
+    auto tf = f.type.isTypeFunction();
+    auto tg = g.type.isTypeFunction();
+    if (!tf || !tg)
+        return 0;
+
+    if (tf.parameterList.varargs != VarArg.none || tg.parameterList.varargs != VarArg.none)
+        return 0;
+    if (tf.parameterList.length != tg.parameterList.length || (*args).length != tf.parameterList.length)
+        return 0;
+
+    int preference = 0;
+    foreach (i, arg; *args)
+    {
+        if (!arg || !arg.type)
+            return 0;
+
+        auto targ = arg.type.toBasetype();
+        auto ptf = tf.parameterList[i].type.toBasetype();
+        auto ptg = tg.parameterList[i].type.toBasetype();
+        if (!targ.isIntegral() || !ptf.isIntegral() || !ptg.isIntegral())
+            return 0;
+        if (targ.isUnsigned())
+            continue;
+
+        if (ptf.size() != ptg.size() || targ.size() >= ptf.size())
+            continue;
+        if (ptf.isUnsigned() == ptg.isUnsigned())
+            continue;
+
+        const current = ptf.isUnsigned() ? -1 : 1;
+        if (preference && preference != current)
+            return 0;
+        preference = current;
+    }
+    return preference;
+}
+
+/***********************************************************
  * Check whether the type t representation relies on one or more the template parameters.
  * Params:
  *      t           = Tested type, if null, returns false.
@@ -5998,6 +6051,13 @@ void functionResolve(ref MatchAccumulator m, Dsymbol dstart, Loc loc, Scope* sc,
             if (c1 < c2) return 0;
         }
 
+        switch (compareIntegralSignednessPreference(fd, m.lastf, argumentList))
+        {
+            case 1: return firstIsBetter();
+            case -1: return 0;
+            default: break;
+        }
+
         /* The 'overrides' check above does covariant checking only
          * for virtual member functions. It should do it for all functions,
          * but in order to not risk breaking code we put it after
@@ -6276,6 +6336,13 @@ void functionResolve(ref MatchAccumulator m, Dsymbol dstart, Loc loc, Scope* sc,
                 //printf("3: c1 = %d, c2 = %d\n", c1, c2);
                 if (c1 > c2) goto Ltd;
                 if (c1 < c2) goto Ltd_best;
+            }
+
+            switch (compareIntegralSignednessPreference(fd, m.lastf, argumentList))
+            {
+                case 1: goto Ltd;
+                case -1: goto Ltd_best;
+                default: break;
             }
 
             // https://issues.dlang.org/show_bug.cgi?id=14450
