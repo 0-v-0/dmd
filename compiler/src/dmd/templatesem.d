@@ -4415,12 +4415,73 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
         Expression[] fargs = argumentList.arguments ? (*argumentList.arguments)[] : null;
         ArgumentLabel[] fnames = argumentList.names ? (*argumentList.names)[] : null;
 
+        void declareNewDeducedParameters()
+        {
+            for (size_t i = ntargs; i < dedargs.length; i++)
+            {
+                if ((*dedargs)[i])
+                    continue;
+
+                RootObject oded = (*dedtypes)[i];
+                if (!oded)
+                    continue;
+
+                if (Type at = isType(oded))
+                {
+                    if (at.ty == Tnone)
+                    {
+                        auto xt = cast(TypeDeduced)at;
+                        if (!xt.tded)
+                            continue;
+                        oded = xt.tded;
+                    }
+                }
+
+                (*dedargs)[i] = td.declareParameter(paramscope, (*td.parameters)[i], oded);
+            }
+        }
+
+        Type resolveDeducedParameterType(Type t)
+        {
+            if (t.deco)
+                return t;
+
+            auto scopeSym = new ScopeDsymbol();
+            auto scx = paramscope.push(scopeSym);
+            scope (exit) scx.pop();
+
+            for (size_t i = ntargs; i < dedargs.length; i++)
+            {
+                RootObject oded = (*dedargs)[i];
+                if (!oded)
+                    oded = (*dedtypes)[i];
+                if (!oded)
+                    continue;
+
+                if (Type at = isType(oded))
+                {
+                    if (at.ty == Tnone)
+                    {
+                        auto xt = cast(TypeDeduced)at;
+                        if (!xt.tded)
+                            continue;
+                        oded = xt.tded;
+                    }
+                }
+                td.declareParameter(scx, (*td.parameters)[i], oded);
+            }
+
+            return t.syntaxCopy().trySemantic(td.loc, scx);
+        }
+
         for (size_t parami = 0; parami < nfparams; parami++)
         {
             Parameter fparam = fparameters[parami];
 
             // Apply function parameter storage classes to parameter types
             Type prmtype = fparam.type.addStorageClass(fparam.storageClass);
+            if (auto resolved = resolveDeducedParameterType(prmtype))
+                prmtype = resolved;
 
             Expression farg;
             Identifier fname = argi < fnames.length ? fnames[argi].name : null;
@@ -4893,6 +4954,7 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
                         argi++;
                         argsConsumed++;
                     }
+                    declareNewDeducedParameters();
                     continue;
                 }
             }
@@ -5021,6 +5083,7 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
                         if (m < match)
                             match = m;
                     }
+                    declareNewDeducedParameters();
                     goto Lmatch;
                 }
             case Tclass:
