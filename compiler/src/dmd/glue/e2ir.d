@@ -35,6 +35,7 @@ import dmd.arraytypes;
 import dmd.astenums;
 import dmd.attrib;
 import dmd.canthrow;
+import dmd.constfold : Index;
 import dmd.ctfeexpr;
 import dmd.dcast : implicitConvTo;
 import dmd.dclass;
@@ -56,6 +57,7 @@ import dmd.id;
 import dmd.init;
 import dmd.location;
 import dmd.mtype;
+import dmd.optimize : expandVar;
 import dmd.printast;
 import dmd.sideeffect;
 import dmd.statement;
@@ -3998,6 +4000,22 @@ elem* toElem(Expression e, ref IRState irs)
 
     elem* visitIndex(IndexExp ie)
     {
+        if (auto ve = ie.e1.isVarExp())
+        {
+            if (auto v = ve.var.isVarDeclaration())
+            {
+                if (v.type && v.type.toBasetype().ty == Tsarray && ie.e2.op == EXP.int64)
+                {
+                    if (auto ex = expandVar(WANTexpand, v))
+                    {
+                        auto folded = Index(ie.type, ex, ie.e2, ie.indexIsInBounds).copy();
+                        if (!CTFEExp.isCantExp(folded))
+                            return toElem(folded, irs);
+                    }
+                }
+            }
+        }
+
         elem* e;
         elem* n1 = toElem(ie.e1, irs);
         elem* eb = null;
