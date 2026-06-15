@@ -126,6 +126,12 @@ struct Symbol
 
 enum ubyte SFvisited = 1;      // visited
 
+struct SymbolCacheEntry
+{
+    const(char)* ptr;
+    size_t length;
+    Symbol* sym;
+}
 
 //////////////////////////////////
 // Build a linked list of these.
@@ -144,6 +150,7 @@ bool trace_inited;
 
 Stack* stack_freelist;
 Stack* trace_tos;           // top of stack
+SymbolCacheEntry[2048] trace_cache;
 
 __gshared
 {
@@ -640,10 +647,27 @@ private void trace_sympair_add(SymPair** psp, Symbol* s, ulong count)
     sp.count += count;
 }
 
+private Symbol* trace_findsym(const(char)[] id)
+{
+    enum cacheMask = trace_cache.length - 1;
+    static assert((trace_cache.length & cacheMask) == 0);
+
+    auto idx = (cast(size_t) id.ptr >> 4) & cacheMask;
+    auto entry = &trace_cache[idx];
+    if (entry.ptr == id.ptr && entry.length == id.length)
+        return entry.sym;
+
+    auto s = trace_addsym(&root, id);
+    entry.ptr = id.ptr;
+    entry.length = id.length;
+    entry.sym = s;
+    return s;
+}
+
 //////////////////////////////////////////////
 // This one is called by DMD
 
-private extern(C) void trace_pro(char[] id)
+private extern(C) void trace_pro(const(char)[] id)
 {
     //printf("trace_pro(ptr = %p, length = %lld)\n", id.ptr, id.length);
     //printf("trace_pro(id = '%.*s')\n", id.length, id.ptr);
@@ -659,7 +683,7 @@ private extern(C) void trace_pro(char[] id)
     if (id.length == 0)
         return;
     auto tos = stack_push();
-    auto s = trace_addsym(&root, id);
+    auto s = trace_findsym(id);
     tos.sym = s;
     if (tos.prev)
     {
