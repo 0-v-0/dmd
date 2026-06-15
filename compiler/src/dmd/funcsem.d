@@ -1757,6 +1757,37 @@ int findVtblIndex(FuncDeclaration fd, Dsymbol[] vtbl)
     //printf("findVtblIndex() %s\n", toChars());
     import dmd.typesem : covariant;
 
+    static bool isOutOverrideCovariant(Type tfd, Type tfdv)
+    {
+        auto t1 = tfd.isTypeFunction();
+        auto t2 = tfdv.isTypeFunction();
+        if (!t1 || !t2)
+            return false;
+        if (t1.parameterList.varargs != t2.parameterList.varargs ||
+            t1.parameterList.length != t2.parameterList.length)
+            return false;
+
+        foreach (i, p1; t1.parameterList)
+        {
+            auto p2 = t2.parameterList[i];
+            if ((p1.storageClass & STC.out_) != (p2.storageClass & STC.out_))
+                return false;
+            if (!(p1.storageClass & STC.out_))
+            {
+                if (!p1.type.equals(p2.type))
+                    return false;
+                continue;
+            }
+            if (p1.type.equals(p2.type))
+                continue;
+            auto tc1 = p1.type.isTypeClass();
+            auto tc2 = p2.type.isTypeClass();
+            if (!tc1 || !tc2 || !tc2.sym.isBaseOf(tc1.sym, null))
+                return false;
+        }
+        return t1.next && t2.next && t1.next.equals(t2.next);
+    }
+
     FuncDeclaration mismatch = null;
     STC mismatchstc = STC.none;
     int mismatchvi = -1;
@@ -1796,7 +1827,8 @@ int findVtblIndex(FuncDeclaration fd, Dsymbol[] vtbl)
         final switch (cov)
         {
         case Covariant.distinct:
-            // types are distinct
+            if (isOutOverrideCovariant(fd.type, fdv.type))
+                bestvi = vi;
             break;
 
         case Covariant.yes:
