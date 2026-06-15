@@ -2202,29 +2202,43 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
 
     ParameterList* parameterList = &tf.parameterList;
     const nparams = parameterList.length;
-    if (argumentList.length > nparams)
+
+    bool hasFixedVariadicPrefix = false;
+    foreach (u, p; *parameterList)
     {
-        if (parameterList.varargs == VarArg.none)
+        if ((p.storageClass & STC.variadic) && u + 1 != nparams)
         {
-            // suppress early exit if an error message is wanted,
-            // so we can check any matching args are valid
-            if (!errorHelper)
-                return MATCH.nomatch;
+            hasFixedVariadicPrefix = true;
+            break;
         }
-        // too many args; no match
-        match = MATCH.convert; // match ... with a "conversion" match level
     }
 
-    // https://issues.dlang.org/show_bug.cgi?id=22997
-    if (parameterList.varargs == VarArg.none && nparams > argumentList.length && !parameterList.hasDefaultArgs)
+    if (!hasFixedVariadicPrefix)
     {
-        if (errorHelper)
+        if (argumentList.length > nparams)
         {
-            OutBuffer buf;
-            buf.printf("too few arguments, expected %d, got %d", cast(int)nparams, cast(int)argumentList.length);
-            errorHelper(buf.peekChars());
+            if (parameterList.varargs == VarArg.none)
+            {
+                // suppress early exit if an error message is wanted,
+                // so we can check any matching args are valid
+                if (!errorHelper)
+                    return MATCH.nomatch;
+            }
+            // too many args; no match
+            match = MATCH.convert; // match ... with a "conversion" match level
         }
-        return MATCH.nomatch;
+
+        // https://issues.dlang.org/show_bug.cgi?id=22997
+        if (parameterList.varargs == VarArg.none && nparams > argumentList.length && !parameterList.hasDefaultArgs)
+        {
+            if (errorHelper)
+            {
+                OutBuffer buf;
+                buf.printf("too few arguments, expected %d, got %d", cast(int)nparams, cast(int)argumentList.length);
+                errorHelper(buf.peekChars());
+            }
+            return MATCH.nomatch;
+        }
     }
     const(char)* failMessage;
     const(char)** pMessage = errorHelper ? &failMessage : null;
@@ -2248,14 +2262,41 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
         args = (*resolvedArgs)[];
     }
 
+    size_t argi = 0;
     foreach (u, p; *parameterList)
     {
-        if (u >= args.length)
+        if ((p.storageClass & STC.variadic) && p.type.toBasetype().ty == Tsarray && u + 1 != nparams)
+        {
+            auto tsa = p.type.toBasetype().isTypeSArray();
+            const count = cast(size_t)tsa.dim.toInteger();
+            if (argi + count > args.length)
+                break;
+
+            foreach (a; args[argi .. argi + count])
+            {
+                if (!a)
+                    continue;
+                Type tprm = tsa.next;
+                Type targ = a.type;
+                if (!(p.isLazy() && tprm.ty == Tvoid && targ.ty != Tvoid))
+                {
+                    const isRef = p.isReference();
+                    wildmatch |= targ.deduceWild(tprm, isRef);
+                }
+            }
+            argi += count;
+            continue;
+        }
+
+        if (argi >= args.length)
             break;
 
-        Expression arg = args[u];
+        Expression arg = args[argi];
         if (!arg)
+        {
+            argi++;
             continue; // default argument
+        }
 
         Type tprm = p.type;
         Type targ = arg.type;
@@ -2265,6 +2306,7 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
             const isRef = p.isReference();
             wildmatch |= targ.deduceWild(tprm, isRef);
         }
+        argi++;
     }
     if (wildmatch)
     {
@@ -2283,18 +2325,46 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
         }
     }
 
+    argi = 0;
     foreach (u, p; *parameterList)
     {
         MATCH m;
 
         assert(p);
 
-        // One or more arguments remain
-        if (u < args.length)
+        const isFixedVariadic = (p.storageClass & STC.variadic) &&
+            p.type.toBasetype().ty == Tsarray && u + 1 != nparams;
+        const isTrailingVariadic = tf.parameterList.varargs == VarArg.typesafe &&
+            (p.storageClass & STC.variadic) && !isFixedVariadic;
+
+        if (isFixedVariadic)
         {
-            Expression arg = args[u];
+            auto tsa = p.type.toBasetype().isTypeSArray();
+            const count = cast(size_t)tsa.dim.toInteger();
+            Expression[] trailingArgs;
+            if (argi + count <= args.length)
+                trailingArgs = args[argi .. argi + count];
+            if (auto vmatch = matchTypeSafeVarArgs(tf, p, trailingArgs, pMessage))
+            {
+                if (vmatch < match)
+                    match = vmatch;
+                argi += count;
+                continue;
+            }
+            if (failMessage)
+                errorHelper(failMessage);
+            return MATCH.nomatch;
+        }
+
+        // One or more arguments remain
+        if (argi < args.length)
+        {
+            Expression arg = args[argi];
             if (!arg)
+            {
+                argi++;
                 continue; // default argument
+            }
             m = argumentMatchParameter(fd, tf, p, arg, wildmatch, flag, sc, pMessage);
             if (failMessage)
             {
@@ -2308,18 +2378,18 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
         /* prefer matching the element type rather than the array
          * type when more arguments are present with T[]...
          */
-        if (parameterList.varargs == VarArg.typesafe && u + 1 == nparams && args.length > nparams)
+        if (isTrailingVariadic && argi < args.length)
             goto L1;
 
         //printf("\tm = %d\n", m);
         if (m == MATCH.nomatch) // if no match
         {
         L1:
-            if (parameterList.varargs == VarArg.typesafe && u + 1 == nparams) // if last varargs param
+            if (isTrailingVariadic)
             {
                 Expression[] trailingArgs;
-                if (args.length >= u)
-                    trailingArgs = args[u .. $];
+                if (args.length >= argi)
+                    trailingArgs = args[argi .. $];
                 if (auto vmatch = matchTypeSafeVarArgs(tf, p, trailingArgs, pMessage))
                     return vmatch < match ? vmatch : match;
                 // Error message was already generated in `matchTypeSafeVarArgs`
@@ -2329,7 +2399,7 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
             }
             if (errorHelper)
             {
-                if (u >= args.length)
+                if (argi >= args.length)
                 {
                     getMatchError(buf, "missing argument for parameter #%d: `%s`",
                                   u + 1, parameterToChars(p, tf, false));
@@ -2337,10 +2407,10 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
                 // If an error happened previously, `pMessage` was already filled
                 else if (buf.length == 0)
                 {
-                    buf.writestring(tf.getParamError(args[u], p));
-                    if(args[u].loc !is Loc.initial)
+                    buf.writestring(tf.getParamError(args[argi], p));
+                    if(args[argi].loc !is Loc.initial)
                     {
-                        errorHelper(buf.peekChars(),args[u].loc);
+                        errorHelper(buf.peekChars(),args[argi].loc);
                         return MATCH.nomatch;
                     }
                 }
@@ -2350,13 +2420,14 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
         }
         if (m < match)
             match = m; // pick worst match
+        argi++;
     }
 
-    if (errorHelper && !parameterList.varargs && args.length > nparams)
+    if (errorHelper && argi < args.length && parameterList.varargs == VarArg.none)
     {
         // all parameters had a match, but there are surplus args
         OutBuffer buf2;
-        getMatchError(buf2, "expected %d argument(s), not %d", nparams, args.length);
+        getMatchError(buf2, "expected %d argument(s), not %d", cast(int)argi, cast(int)args.length);
         errorHelper(buf2.extractChars());
         return MATCH.nomatch;
     }
@@ -4079,8 +4150,15 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
                     errors = true;
                 }
 
-                const bool isTypesafeVariadic = i + 1 == dim && tf.parameterList.varargs == VarArg.typesafe;
+                const bool isTypesafeVariadic = tf.parameterList.varargs == VarArg.typesafe &&
+                    (fparam.storageClass & STC.variadic);
                 const bool isStackAllocatedVariadic = isTypesafeVariadic && (t.isTypeDArray() || t.isTypeClass());
+
+                if (isTypesafeVariadic && i + 1 != dim && t.toBasetype().ty != Tsarray)
+                {
+                    .error(loc, "only fixed-length variadic parameters may be followed by additional parameters");
+                    errors = true;
+                }
 
                 if (isTypesafeVariadic && t.isTypeClass())
                 {
