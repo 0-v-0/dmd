@@ -485,6 +485,36 @@ void test11()
     f++;
 }
 
+void test11a()
+{
+    class C(T)
+    {
+        T[] contents;
+
+        this()
+        {
+            contents.length = 1;
+        }
+
+        T opIndex(int index)
+        {
+            return contents[index];
+        }
+
+        T opIndexUnary(string op)(int index)
+        {
+            static if (op == "++")
+                return ++contents[index];
+            else
+                static assert(0);
+        }
+    }
+
+    auto c = new C!int();
+    assert(c[0]++ == 0);
+    assert(c.contents[0] == 1);
+}
+
 /**************************************/
 // https://issues.dlang.org/show_bug.cgi?id=4099
 
