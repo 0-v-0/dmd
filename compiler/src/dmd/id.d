@@ -476,6 +476,7 @@ immutable Msgtable[] msgtable =
     { "hasMoveConstructor" },
     { "isCopyable" },
     { "toType" },
+    { "typeFromId" },
     { "parameters" },
     { "needsDestruction" },
 
