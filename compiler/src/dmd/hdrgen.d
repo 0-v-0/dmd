@@ -3168,6 +3168,42 @@ private void expressionPrettyPrint(Expression e, ref OutBuffer buf, ref HdrGenSt
  */
 void floatToBuffer(Type type, const real_t value, ref OutBuffer buf, const bool allowHex)
 {
+    if (type)
+    {
+        Type t = type.toBaseTypeNonSemantic();
+        if (!CTFloat.isNaN(value) && !CTFloat.isInfinity(value))
+        {
+            const integral = cast(long) value;
+            if (cast(real_t) integral == value && !CTFloat.isIdentical(value, cast(real_t) -0.0L))
+            {
+                buf.printf("%lld", integral);
+                switch (t.ty)
+                {
+                case Tfloat32:
+                case Timaginary32:
+                case Tcomplex32:
+                    buf.put('f');
+                    break;
+                case Tfloat64:
+                case Timaginary64:
+                case Tcomplex64:
+                    buf.put(".0");
+                    break;
+                case Tfloat80:
+                case Timaginary80:
+                case Tcomplex80:
+                    buf.put(".0L");
+                    break;
+                default:
+                    break;
+                }
+                if (t.isImaginaryNonSemantic())
+                    buf.put('i');
+                return;
+            }
+        }
+    }
+
     /** sizeof(value)*3 is because each byte of mantissa is max
         of 256 (3 characters). The string will be "-M.MMMMe-4932".
         (ie, 8 chars more than mantissa). Plus one for trailing \0.
