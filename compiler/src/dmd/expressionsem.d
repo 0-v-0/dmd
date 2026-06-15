@@ -4240,8 +4240,6 @@ private bool functionParameters(Loc loc, Scope* sc,
 
     const isCtorCall = fd && fd.needThis() && fd.isCtorDeclaration();
 
-    const size_t n = (nargs > nparams) ? nargs : nparams; // n = max(nargs, nparams)
-
     /* If the function return type has wildcards in it, we'll need to figure out the actual type
      * based on the actual argument types.
      * Start with the `this` argument, later on merge into wildmatch the mod bits of the rest
@@ -4249,27 +4247,70 @@ private bool functionParameters(Loc loc, Scope* sc,
      */
     MOD wildmatch = (tthis && !isCtorCall) ? tthis.typeDeduceWild(tf, false) : 0;
 
-    bool done = false;
-    foreach (const i; 0 .. n)
+    auto originalArgs = new Expressions();
+    originalArgs.reserve(nargs);
+    foreach (arg; *arguments)
+        originalArgs.push(arg);
+
+    auto packedArgs = new Expressions();
+    packedArgs.reserve(nparams);
+
+    size_t argi = 0;
+    foreach (i, p; tf.parameterList)
     {
-        Expression arg = (i < nargs) ? (*arguments)[i] : null;
-
-        if (i >= nparams)
-            break;
-
         bool errorArgs()
         {
             error(loc, "expected %llu function arguments, not %llu", cast(ulong)nparams, cast(ulong)nargs);
             return true;
         }
 
-        Parameter p = tf.parameterList[i];
+        const isFixedVariadic = (p.storageClass & STC.variadic) &&
+            p.type.toBasetype().ty == Tsarray && i + 1 != nparams;
+        const isTrailingVariadic = tf.parameterList.varargs == VarArg.typesafe &&
+            (p.storageClass & STC.variadic) && !isFixedVariadic;
+        size_t consumedCount = 0;
+        Expression arg;
+
+        if (isFixedVariadic)
+        {
+            auto tsa = p.type.toBasetype().isTypeSArray();
+            const count = cast(size_t)tsa.dim.toInteger();
+            if (argi + count > nargs)
+                return errorArgs();
+
+            Type tbn = tsa.next;
+            Type tret = p.isLazyArray();
+            auto elements = new Expressions(count);
+            foreach (u; 0 .. count)
+            {
+                Expression a = (*originalArgs)[argi + u];
+                assert(a);
+                if (tret && a.implicitConvTo(tret))
+                {
+                    a = a.implicitCastTo(sc, tret)
+                         .optimize(WANTvalue)
+                         .toDelegate(tret, sc);
+                }
+                else
+                    a = a.implicitCastTo(sc, tbn);
+                a = a.addDtorHook(sc);
+                (*elements)[u] = a;
+            }
+            arg = new ArrayLiteralExp(loc, p.type, elements);
+            arg = arg.expressionSemantic(sc);
+            consumedCount = count;
+            goto L1;
+        }
+
+        arg = (argi < nargs) ? (*originalArgs)[argi] : null;
+        if (arg)
+            consumedCount = 1;
 
         if (!arg)
         {
             if (!p.defaultArg)
             {
-                if (tf.parameterList.varargs == VarArg.typesafe && i + 1 == nparams)
+                if (isTrailingVariadic)
                     goto L2;
                 return errorArgs();
             }
@@ -4281,13 +4322,6 @@ private bool functionParameters(Loc loc, Scope* sc,
                 sc2.pop();
             }
             arg.loc = loc; // update loc for debug info
-            if (i >= nargs)
-            {
-                arguments.push(arg);
-                nargs++;
-            }
-            else
-                (*arguments)[i] = arg;
         }
         else if (arg.isDefaultInitExp())
         {
@@ -4296,14 +4330,18 @@ private bool functionParameters(Loc loc, Scope* sc,
             arg = arg.expressionSemantic(sc2);
             sc2.pop();
             arg.loc = loc; // update loc for debug info
-            (*arguments)[i] = arg;
         }
         else if (!(p.storageClass & (STC.ref_ | STC.out_)))
         {
-            (*arguments)[i] = checkNoreturnVarAccess(arg);
+            arg = checkNoreturnVarAccess(arg);
+            consumedCount = 1;
+        }
+        else
+        {
+            consumedCount = 1;
         }
 
-        if (tf.parameterList.varargs == VarArg.typesafe && i + 1 == nparams) // https://dlang.org/spec/function.html#variadic
+        if (isTrailingVariadic) // https://dlang.org/spec/function.html#variadic
         {
             //printf("\t\tvarargs == 2, p.type = '%s'\n", p.type.toChars());
             if (MATCH m = arg.implicitConvTo(p.type))
@@ -4312,6 +4350,7 @@ private bool functionParameters(Loc loc, Scope* sc,
                     goto L2;
                 else if (nargs != nparams)
                     return errorArgs();
+                consumedCount = 1;
                 goto L1;
             }
         L2:
@@ -4331,10 +4370,10 @@ private bool functionParameters(Loc loc, Scope* sc,
                     Type tbn = (cast(TypeArray)tb).next;    // array element type
                     Type tret = p.isLazyArray();
 
-                    auto elements = new Expressions(nargs - i);
+                    auto elements = new Expressions(nargs - argi);
                     foreach (u; 0 .. elements.length)
                     {
-                        Expression a = (*arguments)[i + u];
+                        Expression a = (*originalArgs)[argi + u];
                         assert(a);
                         if (tret && a.implicitConvTo(tret))
                         {
@@ -4350,7 +4389,7 @@ private bool functionParameters(Loc loc, Scope* sc,
                     }
                     // https://issues.dlang.org/show_bug.cgi?id=14395
                     // Convert to a static array literal, or its slice.
-                    arg = new ArrayLiteralExp(loc, tbn.sarrayOf(nargs - i), elements);
+                    arg = new ArrayLiteralExp(loc, tbn.sarrayOf(nargs - argi), elements);
                     if (tb.ty == Tarray)
                     {
                         arg = new SliceExp(loc, arg, null, null);
@@ -4363,9 +4402,9 @@ private bool functionParameters(Loc loc, Scope* sc,
                     /* Set arg to be:
                      *      new Tclass(arg0, arg1, ..., argn)
                      */
-                    auto args = new Expressions(nargs - i);
-                    foreach (u; i .. nargs)
-                        (*args)[u - i] = (*arguments)[u];
+                    auto args = new Expressions(nargs - argi);
+                    foreach (u; argi .. nargs)
+                        (*args)[u - argi] = (*originalArgs)[u];
                     arg = new NewExp(loc, null, null, p.type, args);
                     break;
                 }
@@ -4379,10 +4418,8 @@ private bool functionParameters(Loc loc, Scope* sc,
             }
             arg = arg.expressionSemantic(sc);
             //printf("\targ = '%s'\n", arg.toChars());
-            arguments.setDim(i + 1);
-            (*arguments)[i] = arg;
-            nargs = i + 1;
-            done = true;
+            consumedCount = nargs - argi;
+            goto L1;
         }
 
     L1:
@@ -4394,10 +4431,13 @@ private bool functionParameters(Loc loc, Scope* sc,
                 //printf("[%d] p = %s, a = %s, wm = %d, wildmatch = %d\n", i, p.type.toChars(), arg.type.toChars(), wm, wildmatch);
             }
         }
-
-        if (done)
-            break;
+        packedArgs.push(arg);
+        argi += consumedCount;
     }
+    arguments.setDim(packedArgs.length);
+    foreach (i, arg; *packedArgs)
+        (*arguments)[i] = arg;
+    nargs = packedArgs.length;
     if ((wildmatch == MODFlags.mutable || wildmatch == MODFlags.immutable_) &&
         tf.next && tf.next.hasWild() &&
         (tf.isRef || !tf.next.implicitConvTo(tf.next.immutableOf())))

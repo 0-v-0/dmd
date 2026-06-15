@@ -491,7 +491,7 @@ private extern(C++) final class Semantic3Visitor : Visitor
                     auto v = new VarDeclaration(fparam.loc, vtype, id, null);
                     //printf("declaring parameter %s of type %s\n", v.toChars(), v.type.toChars());
                     stc |= STC.parameter;
-                    if (f.parameterList.varargs == VarArg.typesafe && i + 1 == nparams)
+                    if (fparam.storageClass & STC.variadic)
                     {
                         stc |= STC.variadic;
                     }

@@ -3693,7 +3693,7 @@ const(char)* parameterToChars(Parameter parameter, TypeFunction tf, bool fullQua
 
     parameterToBuffer(parameter, buf, hgs);
 
-    if (tf.parameterList.varargs == VarArg.typesafe && parameter == tf.parameterList[tf.parameterList.parameters.length - 1])
+    if (tf.parameterList.varargs == VarArg.typesafe && (parameter.storageClass & STC.variadic))
     {
         buf.put("...");
     }
@@ -3724,6 +3724,8 @@ private void parametersToBuffer(ParameterList pl, ref OutBuffer buf, ref HdrGenS
         if (i)
             buf.put(", ");
         pl[i].parameterToBuffer(buf, hgs);
+        if (pl.varargs == VarArg.typesafe && (pl[i].storageClass & STC.variadic))
+            buf.put("...");
     }
     final switch (pl.varargs)
     {
@@ -3740,7 +3742,6 @@ private void parametersToBuffer(ParameterList pl, ref OutBuffer buf, ref HdrGenS
             goto case VarArg.typesafe;
 
         case VarArg.typesafe:
-            buf.put("...");
             break;
     }
     buf.put(')');

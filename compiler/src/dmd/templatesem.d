@@ -3897,7 +3897,7 @@ private bool evaluateConstraint(TemplateDeclaration td, TemplateInstance ti, Sco
         {
             fparam.storageClass &= (STC.IOR | STC.lazy_ | STC.final_ | STC.TYPECTOR | STC.nodtor);
             fparam.storageClass |= STC.parameter;
-            if (tf.parameterList.varargs == VarArg.typesafe && i + 1 == nfparams)
+            if (fparam.storageClass & STC.variadic)
             {
                 fparam.storageClass |= STC.variadic;
                 /* Don't need to set STC.scope_ because this will only
