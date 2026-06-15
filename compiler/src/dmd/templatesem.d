@@ -4027,7 +4027,7 @@ MATCH leastAsSpecialized(Scope* sc, TemplateDeclaration td, TemplateDeclaration 
     tiargs.reserve(td.parameters.length);
     foreach (tp; *td.parameters)
     {
-        if (tp.dependent)
+        if (tp.dependent || tp.hasDefaultArg())
             break;
         RootObject p = tp.dummyArg();
         if (!p) //TemplateTupleParameter
