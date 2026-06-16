@@ -1587,6 +1587,12 @@ template forward(args...)
                    __traits(isLazy, arg) ||
                    !is(typeof(move(arg))))
             alias fwd = arg;
+        else static if (is(typeof(arg) == inout))
+            @property auto fwd(inout(typeof(arg)) x = arg)
+            {
+                version (DigitalMars) { /* @@BUG 23890@@ */ } else pragma(inline, true);
+                return x;
+            }
         // (r)value
         else
             @property auto fwd()
@@ -1793,6 +1799,18 @@ template forward(args...)
     int foo3(int a, int b) { return foo2(a, b); }
 
     assert(foo3(11, 31) == 42);
+}
+
+// https://issues.dlang.org/show_bug.cgi?id=22907
+@safe unittest
+{
+    inout(int)[] fun(inout(int)[] a)
+    {
+        return forward!a;
+    }
+
+    int[] a = [1, 2, 3];
+    assert(fun(a).ptr == a.ptr);
 }
 
 // out
