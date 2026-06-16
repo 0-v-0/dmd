@@ -41,6 +41,14 @@ bool initConfigOptions(CFG)(ref CFG cfg, string cfgname)
 {
     string parse(string opt) @nogc nothrow
     {
+        auto trimmed = skip!isspace(opt);
+        if (trimmed.length >= 4 && trimmed[0 .. 4] == "help" &&
+            (trimmed.length == 4 || trimmed[4] == ' '))
+        {
+            version (CoreUnittest) {} else
+            cfg.help();
+            return "help";
+        }
         if (!parseOptions(cfg, opt))
             return "err";
         return null; // continue processing

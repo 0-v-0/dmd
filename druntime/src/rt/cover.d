@@ -116,6 +116,11 @@ extern (C) void dmd_coverSourcePath( string pathname )
     config.srcpath = pathname;
 }
 
+bool dmd_coverInitializeOptions() @nogc nothrow
+{
+    return config.initialize();
+}
+
 
 /**
  * Set path to where listing files are to be written.
