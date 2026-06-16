@@ -5920,6 +5920,13 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
 
         // Look for the constructor
         cldec.ctor = cldec.searchCtor();
+        if (cldec.defaultCtor)
+        {
+            if (!cldec.ctor)
+                cldec.ctor = cldec.defaultCtor;
+            else if (cldec.ctor != cldec.defaultCtor)
+                cldec.ctor.overloadInsert(cldec.defaultCtor);
+        }
 
         if (!cldec.ctor && cldec.noDefaultCtor)
         {
@@ -5934,11 +5941,12 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
         // If this class has no constructor, but base class has a default
         // ctor, create a constructor:
         //    this() { }
-        if (!cldec.ctor && cldec.baseClass && cldec.baseClass.ctor)
+        if (!cldec.ctor && cldec.baseClass && (cldec.baseClass.defaultCtor || cldec.baseClass.ctor))
         {
-            auto fd = resolveFuncCall(cldec.loc, sc2, cldec.baseClass.ctor, null, cldec.type, ArgumentList(), FuncResolveFlag.quiet);
+            auto baseCtor = cldec.baseClass.defaultCtor ? cast(Dsymbol)cldec.baseClass.defaultCtor : cldec.baseClass.ctor;
+            auto fd = resolveFuncCall(cldec.loc, sc2, baseCtor, null, cldec.type, ArgumentList(), FuncResolveFlag.quiet);
             if (!fd) // try shared base ctor instead
-                fd = resolveFuncCall(cldec.loc, sc2, cldec.baseClass.ctor, null, cldec.type.sharedOf, ArgumentList(), FuncResolveFlag.quiet);
+                fd = resolveFuncCall(cldec.loc, sc2, baseCtor, null, cldec.type.sharedOf, ArgumentList(), FuncResolveFlag.quiet);
             if (fd && !fd.errors)
             {
                 //printf("Creating default this(){} for class %s\n", toChars());
