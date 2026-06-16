@@ -4,6 +4,10 @@ Informative error messages if the compiler inserted an optional destructor call 
 REQUIRED_ARGS: -preview=dtorfields
 TEST_OUTPUT:
 ---
+fail_compilation/dtorfields_attributes.d(117): Error: `nothrow` constructor `dtorfields_attributes.Strict.this` may throw
+fail_compilation/dtorfields_attributes.d(119):        generated `Strict.~this` is not nothrow because of the following field's destructors:
+fail_compilation/dtorfields_attributes.d(115):         - HasDtor member
+fail_compilation/dtorfields_attributes.d(103):           not nothrow `HasDtor.~this` is declared here
 fail_compilation/dtorfields_attributes.d(117): Error: `pure` constructor `dtorfields_attributes.Strict.this` cannot call impure destructor `dtorfields_attributes.Strict.~this`
 fail_compilation/dtorfields_attributes.d(119):        generated `Strict.~this` is impure because of the following field's destructors:
 fail_compilation/dtorfields_attributes.d(115):         - HasDtor member
@@ -37,7 +41,7 @@ struct Strict
 {
     HasDtor member;
 
-    this(int) pure @nogc @safe {} // nothrow doesn't generate dtor call
+    this(int) pure nothrow @nogc @safe {}
 
     ~this() pure @nogc @safe {}
 }
