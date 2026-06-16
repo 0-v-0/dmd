@@ -850,7 +850,12 @@ elem* toElem(Expression e, ref IRState irs)
                 if (se.op == EXP.variable)
                     e = el_una(OPind, TYnptr, e);
                 if ((se.var.isReference() || ISX64REF(se.var)) && !(ISX64REF(se.var) && v && v.offset && !forceStackAccess))
-                    e = el_una(OPind, s.Stype.Tty, e);
+                {
+                    if (se.var.isReference() && se.var.type.toBasetype().ty == Tdelegate)
+                        e = el_una(OPind, totym(se.type), e);
+                    else
+                        e = el_una(OPind, s.Stype.Tty, e);
+                }
                 else if (se.op == EXP.symbolOffset && nrvo)
                 {
                     e = el_una(OPind, TYnptr, e);
@@ -868,17 +873,26 @@ elem* toElem(Expression e, ref IRState irs)
             assert(irs.sclosure || salignSection);
             e = el_var(v.inClosure ? irs.sclosure : salignSection);
             e = el_bin(OPadd, TYnptr, e, el_long(TYsize_t, v.offset));
-            if (se.op == EXP.variable)
+            if (se.var.isReference())
+            {
+                if (se.op == EXP.variable)
+                {
+                    e = el_una(OPind, TYnptr, e);
+                    e = el_una(OPind, s.Stype.Tty, e);
+                    elem_setLoc(e, se.loc);
+                }
+                else if (se.op == EXP.symbolOffset)
+                {
+                    e = el_una(OPind, TYnptr, e);
+                    e = el_bin(OPadd, TYnptr, e, el_long(TYsize_t, offset));
+                }
+            }
+            else if (se.op == EXP.variable)
             {
                 e = el_una(OPind, totym(se.type), e);
                 if (tybasic(e.Ety) == TYstruct)
                     e.ET = Type_toCtype(se.type);
                 elem_setLoc(e, se.loc);
-            }
-            if (se.var.isReference())
-            {
-                e.Ety = TYnptr;
-                e = el_una(OPind, s.Stype.Tty, e);
             }
             else if (se.op == EXP.symbolOffset && nrvo)
             {
