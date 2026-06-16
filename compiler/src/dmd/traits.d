@@ -362,14 +362,18 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         return ErrorExp.get();
     }
 
-    static IntegerExp True()
+    static IntegerExp True(Loc loc = Loc.initial)
     {
-        return IntegerExp.createBool(true);
+        auto e = IntegerExp.createBool(true);
+        e.loc = loc;
+        return e;
     }
 
-    static IntegerExp False()
+    static IntegerExp False(Loc loc = Loc.initial)
     {
-        return IntegerExp.createBool(false);
+        auto e = IntegerExp.createBool(false);
+        e.loc = loc;
+        return e;
     }
 
     /********
@@ -413,7 +417,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
     IntegerExp isX(T)(bool delegate(T) fp)
     {
         if (!dim)
-            return False();
+            return False(e.loc);
         foreach (o; *e.args)
         {
             static if (is(T == Type))
@@ -433,9 +437,9 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
                 auto y = s.isFuncDeclaration();
 
             if (!y || !fp(y))
-                return False();
+                return False(e.loc);
         }
-        return True();
+        return True(e.loc);
     }
 
     alias isTypeX = isX!Type;
@@ -1878,7 +1882,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
          * compile without error
          */
         if (!dim)
-            return False();
+            return False(e.loc);
 
         foreach (o; *e.args)
         {
@@ -1931,10 +1935,10 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
 
             if (global.endGagging(errors) || err)
             {
-                return False();
+                return False(e.loc);
             }
         }
-        return True();
+        return True(e.loc);
     }
     if (e.ident == Id.isSame)
     {
