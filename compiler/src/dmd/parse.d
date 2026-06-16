@@ -5927,6 +5927,23 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
         if (flags & ParseStatementFlags.curly && token.value != TOK.leftCurly)
             error("statement expected to be `{ }`, not `%s`", token.toChars());
 
+        AST.Statement parseAttributeBlock(STC stc)
+        {
+            PrefixAttributes!AST attrs;
+            attrs.storageClass = stc;
+            attrs.comment = token.blockComment.ptr;
+
+            auto a = parseBlock(null, &attrs);
+            auto as = new AST.Statements();
+            as.reserve(a.length);
+            foreach (i; 0 .. a.length)
+            {
+                AST.Dsymbol d = (*a)[i];
+                as.push(new AST.ExpStatement(loc, d));
+            }
+            return new AST.CompoundDeclarationStatement(loc, as);
+        }
+
         switch (token.value)
         {
         case TOK.identifier:
@@ -6164,6 +6181,28 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
         case TOK.interface_:
         Ldeclaration:
             {
+                if (token.value == TOK.const_ ||
+                    token.value == TOK.immutable_ ||
+                    token.value == TOK.shared_ ||
+                    token.value == TOK.inout_ ||
+                    token.value == TOK.nothrow_ ||
+                    token.value == TOK.pure_)
+                {
+                    const stc = token.value == TOK.const_ ? STC.const_ :
+                                token.value == TOK.immutable_ ? STC.immutable_ :
+                                token.value == TOK.shared_ ? STC.shared_ :
+                                token.value == TOK.inout_ ? STC.wild :
+                                token.value == TOK.nothrow_ ? STC.nothrow_ :
+                                STC.pure_;
+                    if (peekNext() == TOK.leftCurly)
+                    {
+                        nextToken();
+                        s = parseAttributeBlock(stc);
+                        if (flags & ParseStatementFlags.scope_)
+                            s = new AST.ScopeStatement(loc, s, token.loc);
+                        break;
+                    }
+                }
                 AST.Dsymbols* a = parseDeclarations(false, null, null);
                 if (a.length > 1)
                 {
