@@ -2754,7 +2754,7 @@ private bool equalsx(TemplateInstance ti1, TemplateInstance ti2)
             farg = fparam.defaultArg;
         if (!farg)
             return false;
-        if (farg.isLvalue())
+        if (farg.isLvalue() && !farg.isForwardingValueParameter())
         {
             if (!(fparam.storageClass & STC.ref_))
                 return false; // auto ref's don't match
@@ -5180,7 +5180,7 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
                     // When assigning an untyped (void) lambda `x => y` to a `(F)(ref F)` parameter,
                     // we don't want to deduce type void creating a void parameter
                 }
-                else if ((fparam.storageClass & STC.ref_) && (!(fparam.storageClass & STC.auto_) || farg.isLvalue()))
+                else if ((fparam.storageClass & STC.ref_) && (!(fparam.storageClass & STC.auto_) || (farg.isLvalue() && !farg.isForwardingValueParameter())))
                 {
                     /* Allow expressions that have CT-known boundaries and type [] to match with [dim]
                      */
