@@ -491,6 +491,10 @@ private extern (C) int _d_run_main2(char[][] args, size_t totalArgsLength, MainF
         args = argsCopy[0..j];
     }
 
+    import rt.config : rt_processCommandLineOptions;
+    if (!rt_processCommandLineOptions())
+        return EXIT_FAILURE;
+
     auto useExceptionTrap = parseExceptionOptions();
 
     version (Windows)

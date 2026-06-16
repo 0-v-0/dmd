@@ -58,6 +58,7 @@ template rt_options()
 }
 
 import core.stdc.ctype : toupper;
+import core.stdc.stdio : fprintf, stderr;
 import core.stdc.stdlib : getenv;
 import core.stdc.string : strlen;
 
@@ -151,4 +152,54 @@ string rt_linkOption(string opt, scope rt_configCallBack dg) @nogc nothrow
         }
     }
     return null;
+}
+
+private bool rt_isKnownOption(string opt) @nogc nothrow
+{
+    foreach (known; ["covopt", "gcopt", "oncycle", "scanDataSeg", "testmode", "trapExceptions"])
+    {
+        if (opt == known)
+            return true;
+    }
+    return false;
+}
+
+bool rt_processCommandLineOptions() @nogc nothrow
+{
+    if (!rt_cmdline_enabled!())
+        return true;
+
+    foreach (a; rt_args)
+    {
+        if (a == "--")
+            break;
+
+        if (a.length < 6 || a[0 .. 6] != "--DRT-")
+            continue;
+
+        auto tail = a[6 .. $];
+        size_t eq;
+        for (; eq < tail.length; ++eq)
+        {
+            if (tail[eq] == '=')
+                break;
+        }
+
+        if (eq == 0 || eq == tail.length)
+        {
+            fprintf(cast()stderr, "Invalid D runtime option `%.*s`.\n", cast(int)a.length, a.ptr);
+            return false;
+        }
+
+        if (!rt_isKnownOption(tail[0 .. eq]))
+        {
+            fprintf(cast()stderr, "Unknown D runtime option `%.*s`.\n", cast(int)a.length, a.ptr);
+            return false;
+        }
+    }
+
+    import core.gc.config;
+    import rt.cover : dmd_coverInitializeOptions;
+
+    return config.initialize() && dmd_coverInitializeOptions();
 }
