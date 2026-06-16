@@ -6869,24 +6869,6 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                     goto Lnomatch;
                 }
 
-                // Found the corresponding parameter tp
-                /+
-                    https://issues.dlang.org/show_bug.cgi?id=23578
-                    To pattern match:
-                    static if (is(S!int == S!av, alias av))
-
-                    We eventually need to deduce `int` (Tint32 [0]) and `av` (Tident).
-                    Previously this would not get pattern matched at all, but now we check if the
-                    template parameter `av` came from.
-
-                    This note has been left to serve as a hint for further explorers into
-                    how IsExp matching works.
-                +/
-                if (auto ta = tp.isTemplateAliasParameter())
-                {
-                    dedtypes[i] = t;
-                    goto Lexact;
-                }
                 // (23578) - ensure previous behaviour for non-alias template params
                 if (!tp.isTemplateTypeParameter())
                 {
@@ -7488,7 +7470,23 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
 
             TemplateTypeParameter tp = parameters[i].isTemplateTypeParameter();
             if (!tp)
+            {
+                if (auto ta = parameters[i].isTemplateAliasParameter())
+                {
+                    if (e == emptyArrayElement || !ta.specAlias)
+                        return;
+                    Type tspec = isType(ta.specAlias);
+                    if (!tspec)
+                        return;
+                    tspec = typeSemantic(tspec, ta.loc, sc);
+                    if (!e.type || !e.type.equals(tspec))
+                        return;
+                    dedtypes[i] = tspec;
+                    result = MATCH.exact;
+                    return;
+                }
                 return; // nomatch
+            }
 
             if (e == emptyArrayElement)
             {
