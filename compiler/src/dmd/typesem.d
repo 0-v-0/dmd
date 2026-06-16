@@ -2489,7 +2489,6 @@ private extern(D) MATCH argumentMatchParameter (FuncDeclaration fd, TypeFunction
     MATCH m;
     Type targ = arg.type;
     Type tprm = wildmatch ? p.type.substWildTo(wildmatch) : p.type;
-
     if (p.isLazy() && tprm.ty == Tvoid && targ.ty != Tvoid)
         m = MATCH.convert;
     else if (flag)
@@ -4221,7 +4220,7 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
 
                     if (farg && (eparam.storageClass & STC.ref_))
                     {
-                        if (!farg.isLvalue() || farg.isBitField())
+                        if (!farg.isLvalue() || farg.isForwardingValueParameter() || farg.isBitField())
                             eparam.storageClass &= ~STC.ref_; // value parameter
                         eparam.storageClass &= ~STC.auto_;    // https://issues.dlang.org/show_bug.cgi?id=14656
                         eparam.storageClass |= STC.autoref;

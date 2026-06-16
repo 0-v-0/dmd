@@ -63,6 +63,24 @@ inout(Expression) lastComma(inout Expression e)
 }
 
 /****************************************
+ * Returns whether `e` refers to a by-value function parameter whose original
+ * argument category should not be re-inferred as an lvalue when forwarding to
+ * another `auto ref` parameter.
+ */
+bool isForwardingValueParameter(Expression e)
+{
+    e = e.lastComma();
+    auto ve = e.isVarExp();
+    if (!ve)
+        return false;
+
+    auto v = ve.var.isVarDeclaration();
+    return v &&
+        (v.storage_class & STC.parameter) &&
+        !(v.storage_class & (STC.ref_ | STC.out_ | STC.lazy_));
+}
+
+/****************************************
  * If `s` is a function template, i.e. the only member of a template
  * and that member is a function, return that template.
  * Params:
