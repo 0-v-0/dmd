@@ -1504,7 +1504,7 @@ private extern(C++) final class Semantic3Visitor : Visitor
          */
         AggregateDeclaration ad = ctor.isMemberDecl();
         if (!ad || !ad.fieldDtor ||
-            global.params.dtorFields == FeatureState.disabled || !global.params.useExceptions || ctor.type.toTypeFunction.isNothrow)
+            global.params.dtorFields == FeatureState.disabled || !global.params.useExceptions)
             return visit(cast(FuncDeclaration)ctor);
 
         /* Generate:
@@ -1517,11 +1517,17 @@ private extern(C++) final class Semantic3Visitor : Visitor
         auto sexp = new ExpStatement(ctor.loc, ce);
         auto ss = new ScopeStatement(ctor.loc, sexp, ctor.loc);
 
+        auto ctf = cast(TypeFunction) ctor.type;
+        auto dtf = cast(TypeFunction) ad.fieldDtor.type;
+
+        if (ctf.isNothrow && !dtf.isNothrow)
+        {
+            ctor.loc.error("`nothrow` constructor `%s` may throw", ctor.toPrettyChars());
+            ad.fieldDtor.checkOverriddenDtor(null, ctor.loc, dd => dd.type.toTypeFunction().isNothrow, "not nothrow");
+        }
+
         if (global.params.dtorFields == FeatureState.default_)
         {
-            auto ctf = cast(TypeFunction) ctor.type;
-            auto dtf = cast(TypeFunction) ad.fieldDtor.type;
-
             const ngErr = ctf.isNogc && !dtf.isNogc;
             const puErr = ctf.purity && !dtf.purity;
             const saErr = ctf.trust == TRUST.safe && dtf.trust <= TRUST.system;
