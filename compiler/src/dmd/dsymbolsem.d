@@ -3273,126 +3273,143 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
                         dsym._init = dsym._init.initializerSemantic(sc, dsym.type, INITinterpret);
                     }
 
-                    if (ei && dsym.isScope())
+                    if (ei && dsym.type.toBasetype().ty == Tsarray && ei.exp.isArrayLiteralExp())
                     {
-                        Expression ex = ei.exp.lastComma();
-                        if (ex.op == EXP.blit || ex.op == EXP.construct)
-                            ex = (cast(AssignExp)ex).e2;
-                        if (auto ne = ex.isNewExp())
+                        // Preserve the declared static-array target in diagnostics
+                        // before ConstructExp rewrites the lhs to a slice.
+                        auto casted = ei.exp.implicitCastTo(sc, dsym.type);
+                        if (casted.op == EXP.error)
                         {
-                            if (ne.placement)
+                            dsym._init = new ErrorInitializer();
+                            ei = null;
+                        }
+                        else
+                            ei.exp = casted;
+                    }
+
+                    if (ei)
+                    {
+                        if (dsym.isScope())
+                        {
+                            Expression ex = ei.exp.lastComma();
+                            if (ex.op == EXP.blit || ex.op == EXP.construct)
+                                ex = (cast(AssignExp)ex).e2;
+                            if (auto ne = ex.isNewExp())
                             {
-                            }
-                            /* See if initializer is a NewExp that can be allocated on the stack.
-                             */
-                            else if (dsym.type.toBasetype().ty == Tclass)
-                            {
-                                /* Unsafe to allocate on stack if constructor is not `scope` because the `this` can leak.
-                                 * https://issues.dlang.org/show_bug.cgi?id=23145
-                                 */
-                                if (ne.member && !(ne.member.storage_class & STC.scope_))
+                                if (ne.placement)
                                 {
-                                    import dmd.escape : setUnsafeDIP1000;
-                                    const inSafeFunc = sc.func && sc.func.isSafeBypassingInference();   // isSafeBypassingInference may call setUnsafe().
-                                    if (setUnsafeDIP1000(*sc, false, dsym.loc, "`scope` allocation of `%s` with a non-`scope` constructor", dsym))
-                                        errorSupplemental(ne.member.loc, "is the location of the constructor");
                                 }
-                                ne.onstack = 1;
-                                dsym.onstack = true;
+                                /* See if initializer is a NewExp that can be allocated on the stack.
+                                 */
+                                else if (dsym.type.toBasetype().ty == Tclass)
+                                {
+                                    /* Unsafe to allocate on stack if constructor is not `scope` because the `this` can leak.
+                                     * https://issues.dlang.org/show_bug.cgi?id=23145
+                                     */
+                                    if (ne.member && !(ne.member.storage_class & STC.scope_))
+                                    {
+                                        import dmd.escape : setUnsafeDIP1000;
+                                        const inSafeFunc = sc.func && sc.func.isSafeBypassingInference();   // isSafeBypassingInference may call setUnsafe().
+                                        if (setUnsafeDIP1000(*sc, false, dsym.loc, "`scope` allocation of `%s` with a non-`scope` constructor", dsym))
+                                            errorSupplemental(ne.member.loc, "is the location of the constructor");
+                                    }
+                                    ne.onstack = 1;
+                                    dsym.onstack = true;
+                                }
+                            }
+                            else if (auto fe = ex.isFuncExp())
+                            {
+                                // or a delegate that doesn't escape a reference to the function
+                                FuncDeclaration f = fe.fd;
+                                if (f.tookAddressOf)
+                                    f.tookAddressOf--;
+                            }
+                            else if (auto ale = ex.isArrayLiteralExp())
+                            {
+                                // or an array literal assigned to a `scope` variable
+                                if (sc.useDIP1000 == FeatureState.enabled
+                                    && !dsym.type.nextOf().needsDestruction())
+                                    ale.onstack = true;
                             }
                         }
-                        else if (auto fe = ex.isFuncExp())
+
+                        Expression exp = ei.exp;
+                        Expression e1 = new VarExp(dsym.loc, dsym);
+
+                        void constructInit(bool isBlit)
                         {
-                            // or a delegate that doesn't escape a reference to the function
-                            FuncDeclaration f = fe.fd;
-                            if (f.tookAddressOf)
-                                f.tookAddressOf--;
+                            if (isBlit)
+                                exp = new BlitExp(dsym.loc, e1, exp);
+                            else
+                                exp = new ConstructExp(dsym.loc, e1, exp);
+                            dsym.canassign++;
+                            exp = exp.expressionSemantic(sc);
+                            dsym.canassign--;
                         }
-                        else if (auto ale = ex.isArrayLiteralExp())
+
+                        if (dsymIsRef) // follow logic similar to typesem.argumentMatchParameter() and statementsem.visitForeach()
                         {
-                            // or an array literal assigned to a `scope` variable
-                            if (sc.useDIP1000 == FeatureState.enabled
-                                && !dsym.type.nextOf().needsDestruction())
-                                ale.onstack = true;
-                        }
-                    }
-
-                    Expression exp = ei.exp;
-                    Expression e1 = new VarExp(dsym.loc, dsym);
-
-                    void constructInit(bool isBlit)
-                    {
-                        if (isBlit)
-                            exp = new BlitExp(dsym.loc, e1, exp);
-                        else
-                            exp = new ConstructExp(dsym.loc, e1, exp);
-                        dsym.canassign++;
-                        exp = exp.expressionSemantic(sc);
-                        dsym.canassign--;
-                    }
-
-                    if (dsymIsRef) // follow logic similar to typesem.argumentMatchParameter() and statementsem.visitForeach()
-                    {
-                        dsym.storage_class |= STC.nodtor;
-                        exp = exp.expressionSemantic(sc);
-                        Type tp = dsym.type;
-                        Type ta = exp.type;
-                        if (!exp.isLvalue())
-                        {
-                            if (dsym.storage_class & STC.autoref)
+                            dsym.storage_class |= STC.nodtor;
+                            exp = exp.expressionSemantic(sc);
+                            Type tp = dsym.type;
+                            Type ta = exp.type;
+                            if (!exp.isLvalue())
                             {
-                                dsym.storage_class &= ~STC.ref_;
-                                constructInit(isBlit);
+                                if (dsym.storage_class & STC.autoref)
+                                {
+                                    dsym.storage_class &= ~STC.ref_;
+                                    constructInit(isBlit);
+                                }
+                                else
+                                {
+                                    .error(dsym.loc, "rvalue `%s` cannot be assigned to `ref %s`", exp.toErrMsg(), dsym.toErrMsg());
+                                    exp = ErrorExp.get();
+                                }
+                            }
+                            else if (!ta.constConv(tp))
+                            {
+                                if (dsym.storage_class & STC.autoref)
+                                {
+                                    dsym.storage_class &= ~STC.ref_;
+                                    constructInit(false);
+                                }
+                                else
+                                {
+                                    .error(dsym.loc, "type `%s` cannot be assigned to `ref %s %s`", ta.toErrMsg(), tp.toErrMsg(), dsym.toErrMsg());
+                                    exp = ErrorExp.get();
+                                }
+                            }
+                            else if (exp.isBitField())
+                            {
+                                if (dsym.storage_class & STC.autoref)
+                                {
+                                    dsym.storage_class &= ~STC.ref_;
+                                    constructInit(false);
+                                }
+                                else
+                                {
+                                    .error(dsym.loc, "bitfield `%s` cannot be assigned to `ref %s`", exp.toErrMsg(), dsym.toErrMsg());
+                                    exp = ErrorExp.get();
+                                }
                             }
                             else
                             {
-                                .error(dsym.loc, "rvalue `%s` cannot be assigned to `ref %s`", exp.toErrMsg(), dsym.toErrMsg());
-                                exp = ErrorExp.get();
-                            }
-                        }
-                        else if (!ta.constConv(tp))
-                        {
-                            if (dsym.storage_class & STC.autoref)
-                            {
-                                dsym.storage_class &= ~STC.ref_;
                                 constructInit(false);
                             }
-                            else
-                            {
-                                .error(dsym.loc, "type `%s` cannot be assigned to `ref %s %s`", ta.toErrMsg(), tp.toErrMsg(), dsym.toErrMsg());
-                                exp = ErrorExp.get();
-                            }
-                        }
-                        else if (exp.isBitField())
-                        {
-                            if (dsym.storage_class & STC.autoref)
-                            {
-                                dsym.storage_class &= ~STC.ref_;
-                                constructInit(false);
-                            }
-                            else
-                            {
-                                .error(dsym.loc, "bitfield `%s` cannot be assigned to `ref %s`", exp.toErrMsg(), dsym.toErrMsg());
-                                exp = ErrorExp.get();
-                            }
                         }
                         else
                         {
-                            constructInit(false);
+                            constructInit(isBlit);
                         }
-                    }
-                    else
-                    {
-                        constructInit(isBlit);
-                    }
 
-                    if (exp.op == EXP.error)
-                    {
-                        dsym._init = new ErrorInitializer();
-                        ei = null;
+                        if (exp.op == EXP.error)
+                        {
+                            dsym._init = new ErrorInitializer();
+                            ei = null;
+                        }
+                        else
+                            ei.exp = exp.optimize(WANTvalue);
                     }
-                    else
-                        ei.exp = exp.optimize(WANTvalue);
                 }
                 else
                 {
