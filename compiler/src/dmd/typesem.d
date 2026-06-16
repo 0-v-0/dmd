@@ -3217,6 +3217,34 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
         return Type.terror;
     }
 
+    static TypeTuple distributeTuple(TypeTuple tt, scope Type delegate(Type) wrap)
+    {
+        auto args = new Parameters(tt.arguments.length);
+        foreach (i, arg; *tt.arguments)
+        {
+            Type t = wrap(arg.type);
+            (*args)[i] = new Parameter(arg.loc, arg.storageClass, t, arg.ident, arg.defaultArg, arg.userAttribDecl);
+        }
+        return new TypeTuple(args);
+    }
+
+    static TypeTuple applyModToTuple(TypeTuple tt, MOD mod)
+    {
+        return distributeTuple(tt, (Type t) => t.addMod(mod));
+    }
+
+    static TypeTuple distributeFunctionReturnTuple(TypeFunction tf, TypeTuple tt)
+    {
+        auto args = new Parameters(tt.arguments.length);
+        foreach (i, arg; *tt.arguments)
+        {
+            auto tfi = tf.copy().isTypeFunction();
+            tfi.next = arg.type;
+            (*args)[i] = new Parameter(arg.loc, arg.storageClass, tfi, arg.ident, arg.defaultArg, arg.userAttribDecl);
+        }
+        return new TypeTuple(args);
+    }
+
     Type visitType(Type t)
     {
         // @@@DEPRECATED_2.110@@@
@@ -3429,6 +3457,8 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
     {
         Type tn = mtype.next.typeSemantic(loc, sc);
         Type tbn = tn.toBasetype();
+        if (auto tt = tbn.isTypeTuple())
+            return distributeTuple(tt, (Type t) => new TypeDArray(t));
         switch (tbn.ty)
         {
         case Ttuple:
@@ -3679,6 +3709,8 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
             return mtype;
         }
         Type n = mtype.next.typeSemantic(loc, sc);
+        if (auto tt = n.toBasetype().isTypeTuple())
+            return distributeTuple(tt, (Type t) => new TypePointer(t));
         switch (n.toBasetype().ty)
         {
         case Ttuple:
@@ -3828,6 +3860,8 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
             sc.stc &= ~(STC.TYPECTOR | STC.FUNCATTR);
             tf.next = tf.next.typeSemantic(loc, sc);
             sc = sc.pop();
+            if (auto tt = tf.next.toBasetype().isTypeTuple())
+                return distributeFunctionReturnTuple(tf, tt);
             errors |= tf.checkRetType(loc);
             if (tf.next.isScopeClass() && !tf.isCtor)
             {
@@ -4297,6 +4331,11 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
         if (t)
         {
             //printf("\tit's a type %d, %s, %s\n", t.ty, t.toChars(), t.deco);
+            if (mtype.mod)
+            {
+                if (auto tt = t.isTypeTuple())
+                    return applyModToTuple(tt, mtype.mod);
+            }
             return t.addMod(mtype.mod);
         }
 
@@ -4383,7 +4422,14 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
         Dsymbol s;
         mtype.resolve(loc, sc, e, t, s);
         if (s && (t = dmd.dsymbolsem.getType(s)) !is null)
+        {
+            if (mtype.mod)
+            {
+                if (auto tt = t.isTypeTuple())
+                    return applyModToTuple(tt, mtype.mod);
+            }
             t = t.addMod(mtype.mod);
+        }
         if (!t)
         {
             .error(loc, "`%s` is used as a type", mtype.toErrMsg());
