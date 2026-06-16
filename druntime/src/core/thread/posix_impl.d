@@ -257,53 +257,61 @@ class Thread : ThreadBase
         }
 
         slock.lock_nothrow();
-        scope(exit) slock.unlock_nothrow();
+        incrementAboutToStart(this);
+        slock.unlock_nothrow();
+        scope (failure)
         {
-            incrementAboutToStart(this);
+            slock.lock_nothrow();
+            decrementAboutToStart(this);
+            slock.unlock_nothrow();
+        }
 
-            version (all)
+        version (all)
+        {
+            // Keep slock out of pthread_create so thread startup does not block
+            // unrelated thread-list operations on the creating thread.
+            // The about-to-start entry still makes the new thread visible to the GC
+            // until thread_entryPoint registers it.
+            // NOTE: This is also set to true by thread_entryPoint, but set it
+            //       here as well so the calling thread will see the isRunning
+            //       state immediately.
+            atomicStore!(MemoryOrder.raw)(m_isRunning, true);
+            scope( failure ) atomicStore!(MemoryOrder.raw)(m_isRunning, false);
+
+            version (Shared)
             {
-                // NOTE: This is also set to true by thread_entryPoint, but set it
-                //       here as well so the calling thread will see the isRunning
-                //       state immediately.
-                atomicStore!(MemoryOrder.raw)(m_isRunning, true);
-                scope( failure ) atomicStore!(MemoryOrder.raw)(m_isRunning, false);
+                auto libs = externDFunc!("rt.sections_elf_shared.pinLoadedLibraries",
+                                         void* function() @nogc nothrow)();
 
-                version (Shared)
+                auto ps = cast(void**).malloc(2 * size_t.sizeof);
+                if (ps is null) onOutOfMemoryError();
+                ps[0] = cast(void*)this;
+                ps[1] = cast(void*)libs;
+                if ( pthread_create( &m_addr, &attr, &thread_entryPoint, ps ) != 0 )
                 {
-                    auto libs = externDFunc!("rt.sections_elf_shared.pinLoadedLibraries",
-                                             void* function() @nogc nothrow)();
-
-                    auto ps = cast(void**).malloc(2 * size_t.sizeof);
-                    if (ps is null) onOutOfMemoryError();
-                    ps[0] = cast(void*)this;
-                    ps[1] = cast(void*)libs;
-                    if ( pthread_create( &m_addr, &attr, &thread_entryPoint, ps ) != 0 )
-                    {
-                        externDFunc!("rt.sections_elf_shared.unpinLoadedLibraries",
-                                     void function(void*) @nogc nothrow)(libs);
-                        .free(ps);
-                        onThreadError( "Error creating thread" );
-                    }
-                }
-                else
-                {
-                    if ( pthread_create( &m_addr, &attr, &thread_entryPoint, cast(void*) this ) != 0 )
-                        onThreadError( "Error creating thread" );
-                }
-                if ( pthread_attr_destroy( &attr ) != 0 )
-                    onThreadError( "Error destroying thread attributes" );
-
-                version (Darwin)
-                {
-                    m_tmach = pthread_mach_thread_np( m_addr );
-                    if ( m_tmach == m_tmach.init )
-                        onThreadError( "Error creating thread" );
+                    externDFunc!("rt.sections_elf_shared.unpinLoadedLibraries",
+                                 void function(void*) @nogc nothrow)(libs);
+                    .free(ps);
+                    onThreadError( "Error creating thread" );
                 }
             }
+            else
+            {
+                if ( pthread_create( &m_addr, &attr, &thread_entryPoint, cast(void*) this ) != 0 )
+                    onThreadError( "Error creating thread" );
+            }
+            if ( pthread_attr_destroy( &attr ) != 0 )
+                onThreadError( "Error destroying thread attributes" );
 
-            return this;
+            version (Darwin)
+            {
+                m_tmach = pthread_mach_thread_np( m_addr );
+                if ( m_tmach == m_tmach.init )
+                    onThreadError( "Error creating thread" );
+            }
         }
+
+        return this;
     }
 
     override final Throwable join( bool rethrow = true )
