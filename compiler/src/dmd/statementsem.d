@@ -3227,6 +3227,93 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
                 return setError();
             }
 
+            Expression[] syncExps;
+            void collectSyncExps(Expression exp)
+            {
+                if (auto ce = exp.isCommaExp())
+                {
+                    collectSyncExps(ce.e1);
+                    collectSyncExps(ce.e2);
+                }
+                else
+                    syncExps ~= exp;
+            }
+
+            collectSyncExps(ss.exp);
+            if (syncExps.length > 1)
+            {
+                auto cs = new Statements();
+                VarDeclarations tmps;
+
+                foreach (i, ref exp; syncExps)
+                {
+                    auto expCd = exp.type.isClassHandle();
+                    if (!expCd)
+                    {
+                        error(ss.loc, "can only `synchronize` on class objects, not `%s`", exp.type.toErrMsg());
+                        return setError();
+                    }
+                    else if (expCd.isInterfaceDeclaration())
+                    {
+                        if (!ClassDeclaration.object)
+                        {
+                            ObjectNotFound(ss.loc, Id.Object);
+                            return setError();
+                        }
+
+                        Type t = ClassDeclaration.object.type;
+                        t = t.typeSemantic(Loc.initial, sc).toBasetype();
+                        assert(t.ty == Tclass);
+
+                        exp = new CastExp(ss.loc, exp, t);
+                        exp = exp.expressionSemantic(sc);
+                        if (exp.op == EXP.error)
+                            return setError();
+                        expCd = exp.type.isClassHandle();
+                    }
+
+                    if (!expCd.hasMonitor())
+                    {
+                        error(ss.loc, "cannot `synchronize` on a `%s` because `object.Object` has no `__monitor` field",
+                              expCd.toErrMsg());
+                        return setError();
+                    }
+
+                    auto tmp = copyToTemp(STC.none, "__sync", exp);
+                    tmp.dsymbolSemantic(sc);
+                    tmps.push(tmp);
+                    cs.push(new ExpStatement(ss.loc, tmp));
+                }
+
+                Statement body = ss._body ? ss._body.syntaxCopy() : null;
+                Statement s;
+                if (syncExps.length == 2)
+                {
+                    auto lhs = new VarExp(ss.loc, tmps[0]);
+                    auto rhs = new VarExp(ss.loc, tmps[1]);
+                    auto cond = new CmpExp(EXP.lessThan, ss.loc,
+                        new CastExp(ss.loc, lhs, Type.tvoidptr),
+                        new CastExp(ss.loc, rhs, Type.tvoidptr));
+                    s = new IfStatement(ss.loc, null, cond,
+                        new SynchronizedStatement(ss.loc, new VarExp(ss.loc, tmps[0]),
+                            new SynchronizedStatement(ss.loc, new VarExp(ss.loc, tmps[1]), body ? body.syntaxCopy() : null)),
+                        new SynchronizedStatement(ss.loc, new VarExp(ss.loc, tmps[1]),
+                            new SynchronizedStatement(ss.loc, new VarExp(ss.loc, tmps[0]), body)),
+                        ss.loc);
+                }
+                else
+                {
+                    s = body;
+                    foreach_reverse (tmp; tmps)
+                        s = new SynchronizedStatement(ss.loc, new VarExp(ss.loc, tmp), s);
+                }
+
+                cs.push(s);
+                s = new CompoundStatement(ss.loc, cs);
+                result = s.statementSemantic(sc);
+                return;
+            }
+
             version (all)
             {
                 /* Rewrite as:
