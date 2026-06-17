@@ -455,6 +455,9 @@ void toObjFile(Dsymbol ds, bool multiobj)
             //printf("VarDeclaration.toObjFile(%p '%s' type=%s) visibility %d\n", vd, vd.toChars(), vd.type.toChars(), vd.visibility);
             //printf("\talign = %d\n", vd.alignment);
 
+            if (vd.semanticRun >= PASS.obj)
+                return;
+
             if (vd.type.ty == Terror)
             {
                 .error(vd.loc, "%s `%s` had semantic errors when compiling", vd.kind, vd.toPrettyChars);
@@ -663,6 +666,8 @@ void toObjFile(Dsymbol ds, bool multiobj)
                 write_pointers(vd.type, s, 0);
             if (vd.isExport() || driverParams.exportVisibility == ExpVis.public_)
                 objmod.export_symbol(s, 0);
+
+            vd.semanticRun = PASS.obj;
         }
 
         override void visit(EnumDeclaration ed)
