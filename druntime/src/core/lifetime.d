@@ -2162,6 +2162,22 @@ private T trustedMoveImpl(T)(return scope ref T source) @trusted
     move(x, x);
 }
 
+@safe unittest // Issue 17419
+{
+    static struct NoCopy
+    {
+        @disable this(this);
+    }
+
+    NoCopy fun(NoCopy x)
+    {
+        return move(x);
+    }
+
+    enum y = fun(NoCopy());
+    static assert(is(typeof(y) == NoCopy));
+}
+
 private enum bool hasContextPointers(T) = {
     static if (__traits(isStaticArray, T))
     {
@@ -2222,6 +2238,35 @@ private enum bool hasContextPointers(T) = {
 }
 
 // target must be first-parameter, because in void-functions DMD + dip1000 allows it to take the place of a return-scope
+private void ctfeMoveCopy(T)(ref T target, ref T source) @trusted
+{
+    import core.internal.traits : anySatisfy;
+
+    static if (is(T U == U[N], U, size_t N))
+    {
+        foreach (i; 0 .. N)
+            ctfeMoveCopy(target[i], source[i]);
+    }
+    else static if (is(T == struct))
+    {
+        static if (anySatisfy!(hasContextPointers, typeof(T.tupleof)))
+        {
+            static foreach (i; 0 .. T.tupleof.length - __traits(isNested, T))
+                ctfeMoveCopy(target.tupleof[i], source.tupleof[i]);
+
+            static if (__traits(isNested, T))
+                *(cast(void**) &target.tupleof[$-1]) = cast(void*) source.tupleof[$-1];
+        }
+        else
+        {
+            static foreach (i, _; typeof(T.tupleof))
+                ctfeMoveCopy(target.tupleof[i], source.tupleof[i]);
+        }
+    }
+    else
+        target = source;
+}
+
 private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
 {
     // TODO: this assert pulls in half of phobos. we need to work out an alternative assert strategy.
@@ -2242,8 +2287,13 @@ private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
 
         static if (hasElaborateAssign!T || !isAssignable!T)
         {
-            import core.stdc.string : memcpy;
-            () @trusted { memcpy(&target, &source, T.sizeof); }();
+            if (__ctfe)
+                ctfeMoveCopy(target, source);
+            else
+            {
+                import core.stdc.string : memcpy;
+                () @trusted { memcpy(&target, &source, T.sizeof); }();
+            }
         }
         else
             target = source;
@@ -2528,12 +2578,60 @@ pure nothrow @system unittest
 }
 
 // wipes source after moving
+private void ctfeWipe(T, Init...)(ref T source, ref const scope Init initializer) @trusted
+if (!Init.length ||
+    ((Init.length == 1) && (is(immutable T == immutable Init[0]))))
+{
+    import core.internal.traits : anySatisfy;
+
+    static if (__traits(isStaticArray, T))
+    {
+        foreach (i; 0 .. T.length)
+            static if (Init.length)
+                ctfeWipe(source[i], initializer[0][i]);
+            else
+                ctfeWipe(source[i]);
+    }
+    else static if (is(T == struct))
+    {
+        static if (anySatisfy!(hasContextPointers, typeof(T.tupleof)))
+        {
+            static foreach (i; 0 .. T.tupleof.length - __traits(isNested, T))
+                static if (Init.length)
+                    ctfeWipe(source.tupleof[i], initializer[0].tupleof[i]);
+                else
+                    ctfeWipe(source.tupleof[i]);
+        }
+        else
+        {
+            static foreach (i, _; typeof(T.tupleof))
+                static if (Init.length)
+                    ctfeWipe(source.tupleof[i], initializer[0].tupleof[i]);
+                else
+                    ctfeWipe(source.tupleof[i]);
+        }
+    }
+    else static if (Init.length)
+        source = initializer[0];
+    else
+        source = T.init;
+}
+
 private void wipe(T, Init...)(return scope ref T source, ref const scope Init initializer) @trusted
 if (!Init.length ||
     ((Init.length == 1) && (is(immutable T == immutable Init[0]))))
 {
     static if (!is(T == struct) || !__traits(isNested, T))
         pragma(inline, true);
+
+    if (__ctfe)
+    {
+        static if (Init.length)
+            ctfeWipe(source, initializer[0]);
+        else
+            ctfeWipe(source);
+        return;
+    }
 
     static if (__traits(isStaticArray, T) && hasContextPointers!T)
     {
