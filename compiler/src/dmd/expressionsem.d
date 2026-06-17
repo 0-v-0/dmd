@@ -15414,6 +15414,47 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             return;
         }
 
+        if (auto tup1 = exp.e1.isTupleExp())
+        {
+            if (auto tup2 = exp.e2.isTupleExp())
+            {
+                const dim = tup1.exps.length;
+                if (dim != tup2.exps.length)
+                {
+                    error(exp.loc, "mismatched sequence lengths, `%d` and `%d`",
+                        cast(int)dim, cast(int)tup2.exps.length);
+                    return setError();
+                }
+
+                Expression result;
+                if (dim == 0)
+                {
+                    result = IntegerExp.createBool(exp.op == EXP.identity);
+                }
+                else
+                {
+                    foreach (i; 0 .. dim)
+                    {
+                        auto ex1 = (*tup1.exps)[i];
+                        auto ex2 = (*tup2.exps)[i];
+                        auto e = new IdentityExp(exp.op, exp.loc, ex1, ex2);
+
+                        if (!result)
+                            result = e;
+                        else if (exp.op == EXP.identity)
+                            result = new LogicalExp(exp.loc, EXP.andAnd, result, e);
+                        else
+                            result = new LogicalExp(exp.loc, EXP.orOr, result, e);
+                    }
+                }
+
+                result = Expression.combine(tup1.e0, tup2.e0, result);
+                result = result.expressionSemantic(sc);
+                this.result = result;
+                return;
+            }
+        }
+
         if (auto e = typeCombine(exp, sc))
         {
             result = e;
