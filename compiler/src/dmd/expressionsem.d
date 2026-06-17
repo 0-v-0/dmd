@@ -19871,6 +19871,14 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
         e2 = match == MATCH.exact || match == MATCH.nomatch ? exp.e2 : exp.e2.implicitCastTo(sc, taa.next);
     }
     Expression ev = extractSideEffect(sc, "__aaval", e0, e2); // must be evaluated before the insertion
+    auto ts = ie.type.isTypeStruct();
+    Expression evInsert;
+    if (exp.isAssignExp() && ts && (ts.sym.postblit || ts.sym.hasCopyCtor))
+    {
+        // Force any throwing struct copy before mutating the AA, then move the
+        // prepared value into a newly inserted slot with a blit.
+        evInsert = extractSideEffect(sc, "__aavalins", e0, new CastExp(loc, ev, taa.next), true, STC.exptemp | STC.nodtor);
+    }
 
     // generate series of calls to _d_aaGetY
     for (size_t i = ekeys.length; i > 0; --i)
@@ -19916,12 +19924,33 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
         return ex.expressionSemantic(sc);
     }
     AssignExp ae = new AssignExp(loc, ex, ev);
-    auto ts = ie.type.isTypeStruct();
     if (Expression overexp = ts ? ae.opOverloadAssign(sc, aliasThisStop) : null)
     {
         if (overexp.op == EXP.error)
             return overexp;
-        if (auto ey = implicitConvertToStruct(ev, ts.sym, sc))
+        if (Expression ey = evInsert)
+        {
+            ey = new BlitExp(loc, ex, ey);
+            ey = ey.expressionSemantic(sc);
+            if (ey.op == EXP.error)
+                return ey;
+            ex = overexp;
+
+            // https://issues.dlang.org/show_bug.cgi?id=14144
+            // The whole expression should have the common type
+            // of opAssign() return and assigned AA entry.
+            // Even if there's no common type, expression should be typed as void.
+            if (!typeMerge(sc, EXP.question, ex, ey))
+            {
+                ex = new CastExp(ex.loc, ex, Type.tvoid);
+                ey = new CastExp(ey.loc, ey, Type.tvoid);
+            }
+            Expression condfound = new VarExp(loc, varfound);
+            ex = new CondExp(loc, condfound, ex, ey);
+            ex = Expression.combine(e0, ex);
+            ex.isCommaExp().originalExp = exp;
+        }
+        else if (auto ey = implicitConvertToStruct(ev, ts.sym, sc))
         {
             // __aafound ? __aaget.opAssign(__aaval) : __aaget.ctor(__aaval)
             ey = new ConstructExp(loc, ex, ey);
@@ -19959,7 +19988,18 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
     }
     else
     {
-        ex = Expression.combine(e0, ae);
+        if (evInsert)
+        {
+            Expression ey = new BlitExp(loc, ex, evInsert);
+            ey = ey.expressionSemantic(sc);
+            if (ey.op == EXP.error)
+                return ey;
+            Expression condfound = new VarExp(loc, varfound);
+            ex = new CondExp(loc, condfound, ae, ey);
+            ex = Expression.combine(e0, ex);
+        }
+        else
+            ex = Expression.combine(e0, ae);
         ex.isCommaExp().originalExp = exp;
     }
     ex = ex.expressionSemantic(sc);
