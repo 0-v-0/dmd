@@ -1333,6 +1333,10 @@ bool ctfeIdentity(Loc loc, EXP op, Expression e1, Expression e2)
     {
         cmp = false;
     }
+    else if (e1.op == EXP.assocArrayLiteral && e2.op == EXP.assocArrayLiteral)
+    {
+        cmp = e1 == e2;
+    }
     else if (e1.op == EXP.symbolOffset && e2.op == EXP.symbolOffset)
     {
         SymOffExp es1 = e1.isSymOffExp();
