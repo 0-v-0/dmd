@@ -4937,6 +4937,7 @@ Expression defaultInitLiteral(Type t, Loc loc)
 
         auto structelems = new Expressions(ts.sym.nonHiddenFields());
         ulong bitoffset = 0;
+        size_t nonZeroBytes = 0;
         foreach (j; 0 .. structelems.length)
         {
             VarDeclaration vd = ts.sym.fields[j];
@@ -4963,6 +4964,8 @@ Expression defaultInitLiteral(Type t, Loc loc)
                 e = vd.type.defaultInitLiteral(loc);
             if (e && e.op == EXP.error)
                 return e;
+            if (e && !_isZeroInit(e))
+                nonZeroBytes += cast(size_t)vd.type.size(loc);
             if (e)
             {
                 if (vbf)
@@ -4974,10 +4977,12 @@ Expression defaultInitLiteral(Type t, Loc loc)
         }
         auto structinit = new StructLiteralExp(loc, ts.sym, structelems);
 
-        /* Copy from the initializer symbol for larger symbols,
-         * otherwise the literals expressed as code get excessively large.
+        /* Copy from the initializer symbol for larger, dense symbols.
+         * Sparse initializers are cheaper to materialize with explicit stores
+         * so they do not need a separate read-only blob.
          */
-        if (size(ts, loc) > target.ptrsize * 4 && !ts.needsNested())
+        if (size(ts, loc) > target.ptrsize * 4 && !ts.needsNested() &&
+            (nonZeroBytes == 0 || nonZeroBytes * 2 >= size(ts, loc)))
             structinit.useStaticInit = true;
 
         structinit.type = ts;
