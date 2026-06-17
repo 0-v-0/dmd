@@ -48,7 +48,7 @@ int testVar()
     {
         auto bb = aa.dup();
         assert(bb == aa);
-        //assert(aa !is bb);  // issue in ctfeIdentity
+        assert(aa !is bb);  // issue 17702
         assert(&aa[5] !is &bb[5]);
         bb[5] = 10;
         assert(aa[5] == 4);
