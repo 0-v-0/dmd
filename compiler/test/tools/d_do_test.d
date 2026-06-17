@@ -112,6 +112,7 @@ struct TestArgs
     string   transformOutput;       /// Transformations for the compiler output
     string   requiredArgs;          /// `REQUIRED_ARGS`: dmd arguments passed when compiling D sources
     string   requiredArgsForLink;   /// `COMPILE_SEPARATELY`: dmd arguments passed when linking separately compiled objects
+    string   defaultLibArgs;        /// Extra default library flags for runnable/link tests
     string   disabledReason;        /// `DISABLED`: reason to skip this test or empty, if the test is not disabled
 
     /// Returns: whether this disabled due to some reason
@@ -124,6 +125,7 @@ struct EnvData
 {
     string all_args;             /// `ARGS`: arguments to test in permutations
     string dmd;                  /// `DMD`: compiler under test
+    string build;                /// `BUILD`: compiler/test build configuration
     string results_dir;          /// `RESULTS_DIR`: directory for temporary files
     string sep;                  /// `SEP`: directory separator (`/` or `\`)
     string dsep;                 /// `DSEP`: double directory separator ( `/` or `\\`)
@@ -134,9 +136,11 @@ struct EnvData
     string ccompiler;            /// `CC`: host C compiler
     string cxxcompiler;          /// `CXX`: host C++ compiler
     string model;                /// `MODEL`: target model (`32` or `64`)
+    string druntimePath;         /// `DRUNTIME_PATH`: path to the druntime checkout
     string required_args;        /// `REQUIRED_ARGS`: flags added to the tests `REQUIRED_ARGS` parameter
     string cxxCompatFlags;       /// Additional flags passed to $(compiler) when `EXTRA_CPP_SOURCES` is present
     string[] picFlag;            /// Compiler flag for PIC (if requested from environment)
+    bool sharedBuild;            /// `SHARED`: whether shared libraries are enabled
     bool dobjc;                  /// `D_OBJC`: run Objective-C tests
     bool coverage_build;         /// `COVERAGE`: coverage build, skip linking & executing to save time
     bool autoUpdate;             /// `AUTO_UPDATE`: update `(TEST|RUN)_OUTPUT` on missmatch
@@ -164,6 +168,7 @@ immutable(EnvData) processEnvironment()
 
     EnvData envData;
     envData.all_args       = environment.get("ARGS");
+    envData.build          = environment.get("BUILD", "release");
     envData.results_dir    = envGetRequired("RESULTS_DIR");
     envData.sep            = envGetRequired ("SEP");
     envData.dsep           = environment.get("DSEP");
@@ -175,7 +180,9 @@ immutable(EnvData) processEnvironment()
     envData.ccompiler      = environment.get("CC");
     envData.cxxcompiler    = environment.get("CXX");
     envData.model          = envGetRequired("MODEL");
+    envData.druntimePath   = environment.get("DRUNTIME_PATH", testPath(`../../druntime`));
     envData.required_args  = environment.get("REQUIRED_ARGS");
+    envData.sharedBuild    = environment.get("SHARED", "0") != "0";
     envData.dobjc          = environment.get("D_OBJC") == "1";
     envData.coverage_build = environment.get("DMD_TEST_COVERAGE") == "1";
     envData.autoUpdate     = environment.get("AUTO_UPDATE", "") == "1";
@@ -797,6 +804,14 @@ bool gatherTestParameters(ref TestArgs testArgs, string input_dir, string input_
     if (!testArgs.isDisabled)
         testArgs.disabledReason = getDisabledReason(split(disabledPlatformsStr), envData);
 
+    if ((testArgs.mode == TestMode.RUN || testArgs.link) &&
+        !testArgs.requiredArgs.canFind("-defaultlib=") &&
+        !testArgs.requiredArgsForLink.canFind("-defaultlib=") &&
+        !sourcesUsePhobos(testArgs.sources ~ testArgs.compiledImports))
+    {
+        testArgs.defaultLibArgs = druntimeDefaultLibArgs(envData);
+    }
+
     findTestParameter(envData, file, "TEST_OUTPUT_FILE", testArgs.compileOutputFile);
 
     // Only check for TEST_OUTPUT is no file was given because it would
@@ -1122,6 +1137,52 @@ unittest
     assert(`S('\xff').this(1)`.unifyDirSep("/") == `S('\xff').this(1)`);
     assert(`invalid UTF character \U80000000`.unifyDirSep("/") == `invalid UTF character \U80000000`);
     assert("https://code.dlang.org".unifyDirSep("\\") == "https://code.dlang.org");
+}
+
+/// Returns true if the source text imports Phobos.
+private bool sourceUsesPhobos(string source)
+{
+    static phobosImport = regex(`(?m)^\s*(?:public\s+|static\s+)?import\s+[^;]*\bstd(?:\.|\b)`);
+    return !source.matchFirst(phobosImport).empty;
+}
+
+/// Returns true if any of the given source files imports Phobos.
+private bool sourcesUsePhobos(const string[] sources)
+{
+    foreach (sourcePath; sources)
+    {
+        if (sourceUsesPhobos(cast(string) std.file.read(sourcePath)))
+            return true;
+    }
+
+    return false;
+}
+
+/// Builds the generated library directory for the current test environment.
+private string generatedLibDir(const ref EnvData envData)
+{
+    return buildPath(envData.druntimePath, "generated", envData.os, envData.build, envData.model);
+}
+
+/// Returns the druntime-only default library arguments for runnable/link tests.
+private string druntimeDefaultLibArgs(const ref EnvData envData)
+{
+    if (envData.os == "windows")
+        return `-defaultlib=` ~ (envData.model == "64" ? "druntime64" : "druntime32mscoff");
+
+    if (envData.sharedBuild)
+        return `-defaultlib=libdruntime.so -L-rpath=` ~ generatedLibDir(envData);
+
+    return `-defaultlib=libdruntime.a`;
+}
+
+unittest
+{
+    assert(sourceUsesPhobos("import std.stdio;"));
+    assert(sourceUsesPhobos("public import std.algorithm;"));
+    assert(sourceUsesPhobos("static import foo = std.stdio;"));
+    assert(!sourceUsesPhobos("import core.stdc.stdio;"));
+    assert(!sourceUsesPhobos("module foo;"));
 }
 
 /**
@@ -1786,8 +1847,8 @@ int tryMain(string[] args)
                 string objfile = output_dir ~ envData.sep ~ test_name ~ "_" ~ to!string(permuteIndex) ~ envData.obj;
                 toCleanup ~= objfile;
 
-                command = format("%s -conf= -m%s -I%s %s %s -od%s -of%s %s %s%s %s", envData.dmd, envData.model, input_dir,
-                        testArgs.requiredArgs, permutedArgs, output_dir,
+                command = format("%s -conf= -m%s -I%s %s %s %s -od%s -of%s %s %s%s %s", envData.dmd, envData.model, input_dir,
+                        testArgs.requiredArgs, testArgs.defaultLibArgs, permutedArgs, output_dir,
                         (testArgs.mode == TestMode.RUN || testArgs.link ? test_app_dmd : objfile),
                         argSet,
                         (testArgs.mode == TestMode.RUN || testArgs.link ? "" : "-c "),
@@ -1810,18 +1871,18 @@ int tryMain(string[] args)
                     string newo = output_dir ~ envData.sep ~ filename.baseName().setExtension(envData.obj);
                     toCleanup ~= newo;
 
-                    command = format("%s -conf= -m%s -I%s %s %s -od%s -c %s %s", envData.dmd, envData.model, input_dir,
-                        testArgs.requiredArgs, permutedArgs, output_dir, argSet, filename);
+                    command = format("%s -conf= -m%s -I%s %s %s %s -od%s -c %s %s", envData.dmd, envData.model, input_dir,
+                        testArgs.requiredArgs, testArgs.defaultLibArgs, permutedArgs, output_dir, argSet, filename);
                     compile_output ~= execute(fThisRun, command, testArgs.mode == TestMode.FAIL_COMPILE);
                 }
 
                 if (testArgs.mode == TestMode.RUN || testArgs.link)
                 {
                     // link .o's into an executable
-                    command = format("%s -conf= -m%s%s%s %s %s -od%s -of%s %s", envData.dmd, envData.model,
+                    command = format("%s -conf= -m%s%s%s %s %s %s -od%s -of%s %s", envData.dmd, envData.model,
                         autoCompileImports ? " -i" : "",
                         autoCompileImports ? "extraSourceIncludePaths" : "",
-                        envData.required_args, testArgs.requiredArgsForLink, output_dir, test_app_dmd, join(toCleanup, " "));
+                        envData.required_args, testArgs.requiredArgsForLink, testArgs.defaultLibArgs, output_dir, test_app_dmd, join(toCleanup, " "));
 
                     execute(fThisRun, command, testArgs.runReturn);
                 }
