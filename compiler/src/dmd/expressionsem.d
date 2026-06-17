@@ -9247,6 +9247,11 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             Identifier tid = e.id ? e.id : Identifier.generateId("__isexp_id");
             e.parameters.insert(0, new TemplateTypeParameter(e.loc, tid, null, null));
 
+            // Exact `is(... == ...)` matching must respect top-level qualifiers
+            // before template deduction starts stripping shapes.
+            if (e.tok == TOK.equal && e.targ.mod != e.tspec.mod)
+                return no();
+
             Objects dedtypes = Objects(e.parameters.length);
             dedtypes.zero();
 
