@@ -553,8 +553,6 @@ string[string] getEnvironment()
     env["DMD"] = dmdPath;
     env.setDefault("DMD_TEST_COVERAGE", "0");
 
-    const generatedSuffix = "generated/%s/%s/%s".format(os, build, model);
-
     version(Windows)
     {
         env.setDefault("ARGS", "-inline -release -g -O");
@@ -563,8 +561,10 @@ string[string] getEnvironment()
         env["SEP"] = `\`;
         auto druntimePath = environment.get("DRUNTIME_PATH", testPath(`..\..\druntime`));
         auto phobosPath = environment.get("PHOBOS_PATH", testPath(`..\..\..\phobos`));
+        auto druntimeLibPath = buildPath(druntimePath, "generated", os, build, model);
+        auto phobosLibPath = buildPath(phobosPath, "generated", os, build, model);
         env["DFLAGS"] = `-I"%s\import" -I"%s"`.format(druntimePath, phobosPath);
-        env["LIB"] = phobosPath ~ ";" ~ environment.get("LIB");
+        env["LIB"] = druntimeLibPath ~ ";" ~ phobosLibPath ~ ";" ~ phobosPath ~ ";" ~ environment.get("LIB");
     }
     else
     {
@@ -574,6 +574,8 @@ string[string] getEnvironment()
         env["SEP"] = "/";
         auto druntimePath = environment.get("DRUNTIME_PATH", testPath(`../../druntime`));
         auto phobosPath = environment.get("PHOBOS_PATH", testPath(`../../../phobos`));
+        auto druntimeLibPath = buildPath(druntimePath, "generated", os, build, model);
+        auto phobosLibPath = buildPath(phobosPath, "generated", os, build, model);
 
         // default to PIC, use PIC=1/0 to en-/disable PIC.
         // Note that shared libraries and C files are always compiled with PIC.
@@ -583,10 +585,11 @@ string[string] getEnvironment()
 
         env["PIC_FLAG"]  = pic ? "-fPIC" : "";
         env["DFLAGS"] = "-I%s/import -I%s".format(druntimePath, phobosPath)
-            ~ " -L-L%s/%s".format(phobosPath, generatedSuffix);
+            ~ " -L-L%s".format(druntimeLibPath)
+            ~ " -L-L%s".format(phobosLibPath);
         bool isShared = environment.get("SHARED") != "0" && os.among("linux", "freebsd", "hurd") > 0;
         if (isShared)
-            env["DFLAGS"] = env["DFLAGS"] ~ " -defaultlib=libphobos2.so -L-rpath=%s/%s".format(phobosPath, generatedSuffix);
+            env["DFLAGS"] = env["DFLAGS"] ~ " -defaultlib=libphobos2.so -L-rpath=%s".format(phobosLibPath);
 
         if (pic)
             env["REQUIRED_ARGS"] = environment.get("REQUIRED_ARGS") ~ " " ~ env["PIC_FLAG"];
