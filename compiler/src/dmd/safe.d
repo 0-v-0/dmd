@@ -90,7 +90,9 @@ bool checkUnsafeAccess(Scope* sc, Expression e, bool readonly, bool printmsg)
     const hasPointers = v.type.hasPointers();
     if (hasPointers)
     {
-        if (v.overlapped)
+        // Reading an overlapped pointer field is unsafe, but writing to it is
+        // allowed because it only stores the pointer bits.
+        if (readonly && v.overlapped)
         {
             if (sc.func.isSafeBypassingInference() && sc.setUnsafe(!printmsg, e.loc,
                 "accessing overlapped field `%s.%s` with pointers", ad, v))
