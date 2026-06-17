@@ -1684,6 +1684,9 @@ private bool hasNestedArgs(TemplateInstance _this, Objects* args, bool isstatic)
             return search2(sa);
         if (ti && ti.enclosing)
             return search2(sa);
+        // A local mixin can expose stack-local members through aliasing.
+        if (ti && ti.isTemplateMixin())
+            return search2(sa);
         if (d && !d.isDataseg()
               && !(d.storage_class & STC.manifest)
               && (!d.isFuncDeclaration() || d.isFuncDeclaration().isNested())
