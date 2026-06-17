@@ -555,6 +555,36 @@ void test19829()
     assert(bar == [true]);
 }
 
+// https://github.com/dlang/dmd/issues/17374
+void test17374()
+{
+    struct S
+    {
+        bool cond;
+        this(this)
+        {
+            if (cond)
+                throw new Exception("failure");
+        }
+    }
+
+    S[int] aa;
+
+    try
+        aa[1] = S(true);
+    catch (Exception)
+    {
+    }
+    assert(aa.keys.length == 0);
+
+    try
+        aa.require(2, S(true));
+    catch (Exception)
+    {
+    }
+    assert(aa.keys.length == 0);
+}
+
 /***************************************************/
 
 void main()
@@ -587,5 +617,6 @@ void main()
     test22567();
     test22556();
     test19829();
+    test17374();
     test23182();
 }
