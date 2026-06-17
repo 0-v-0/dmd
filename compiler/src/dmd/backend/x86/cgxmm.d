@@ -445,6 +445,7 @@ void xmmcnvt(ref CGstate cg,ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     case OPd_s16:
     case OPd_s32: ty = TYint;  goto Ldtoi;
     case OPd_u32: ty = TYlong; if (I64) rex = REX_W; goto Ldtoi;
+    case OPd_u64: ty = TYlong; rex = REX_W; goto Ldtoi;
     case OPd_s64: ty = TYlong; rex = REX_W; goto Ldtoi;
     Ldtoi:
         regs = XMMREGS;

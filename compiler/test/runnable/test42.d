@@ -5677,6 +5677,17 @@ void testreal_to_ulong()
     //assert(v == 10145709240540253389UL);
 }
 
+void testsqrt_to_ulong()
+{
+    import std.math : sqrt;
+
+    double d = 9007199515875288.0;
+    auto u = cast(ulong) sqrt(d);
+    auto s = cast(long) sqrt(d);
+    assert(u == cast(ulong) s);
+    assert(u == 94906267UL);
+}
+
 /***************************************************/
 
 long testbt1(long a, long b, int c)
@@ -6463,6 +6474,7 @@ int main()
     testdbl_to_ulong();
     testdbl_to_uint();
     testreal_to_ulong();
+    testsqrt_to_ulong();
     test248();
     test249();
     test250();

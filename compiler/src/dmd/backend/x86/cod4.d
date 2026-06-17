@@ -3581,6 +3581,13 @@ void cdcnvt(ref CGstate cg, ref CodeBuilder cdb, elem* e, ref regm_t pretregs)
                 goto L1;
 
             case OPd_u64:
+                if (I64 && config.fpxmmregs && e.E1.Eoper == OPsqrt)
+                {
+                    // sqrt(double) is non-negative, so use the same truncate-to-int64
+                    // path as OPd_s64 to avoid keeping the 80-bit x87 intermediate.
+                    xmmcnvt(cg,cdb,e,pretregs);
+                    return;
+                }
                 if (I32 || I64)
                 {
                     cdd_u64(cg,cdb,e,pretregs);
