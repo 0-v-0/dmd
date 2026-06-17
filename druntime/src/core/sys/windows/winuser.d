@@ -1722,11 +1722,23 @@ enum WM_MOUSELEAVE = 0x2A3;
 
 enum WHEEL_DELTA = 120;
 
+WORD GET_KEYSTATE_WPARAM()(WPARAM wparam) {
+    return LOWORD(wparam);
+}
+
 SHORT GET_WHEEL_DELTA_WPARAM()(WPARAM wparam) {
     return cast(SHORT) HIWORD(wparam);
 }
 
 enum WHEEL_PAGESCROLL = uint.max;
+
+int GET_X_LPARAM()(LPARAM lparam) {
+    return cast(int) cast(SHORT) LOWORD(lparam);
+}
+
+int GET_Y_LPARAM()(LPARAM lparam) {
+    return cast(int) cast(SHORT) HIWORD(lparam);
+}
 
 enum BM_CLICK = 245;
 enum BM_GETCHECK = 240;
