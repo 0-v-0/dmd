@@ -1624,6 +1624,17 @@ private void resolveHelper(TypeQualified mt, Loc loc, Scope* sc, Dsymbol s, Dsym
             else
                 e = new VarExp(loc, s.isDeclaration(), true);
 
+            if (!intypeid && s.needThis())
+            {
+                for (;;)
+                {
+                    auto aliasThis = resolveAliasThis(sc, e, true, true);
+                    if (!aliasThis || aliasThis == e)
+                        break;
+                    e = aliasThis;
+                }
+            }
+
             e = typeToExpressionHelper(mt, e, i);
             e = e.expressionSemantic(sc);
             resolveExp(e, pt, pe, ps);
