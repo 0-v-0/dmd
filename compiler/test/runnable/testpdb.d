@@ -41,6 +41,7 @@ void main(string[] args)
         testLineNumbers19747(session, globals);
         testLineNumbers19719(session, globals);
         testLineNumbers19587(session, globals);
+        test17581(session, globals);
 
         S18984 s = test18984(session, globals);
 
@@ -158,6 +159,55 @@ void testLineNumbers19587(IDiaSession session, IDiaSymbol globals)
     foreach(ln; lines)
         found = found || ln.line == lineReturnTest19587;
     assert(found);
+}
+
+// https://github.com/dlang/dmd/issues/17581
+int test17581()
+{
+    int sum;
+    for (int i = 0; i < 2; ++i)
+        sum += i;
+label17581:
+    for (int i = 0; i < 2; ++i)
+        sum += i;
+    goto done17581;
+done17581:
+    return sum;
+}
+
+DWORD countSymbolsByTag(IDiaSymbol parent, SymTagEnum tag)
+{
+    IDiaEnumSymbols enumSymbols;
+    HRESULT hr = parent.findChildren(SymTagEnum.SymTagNull, null, NameSearchOptions.nsNone, &enumSymbols);
+    if (hr != S_OK)
+        return 0;
+
+    DWORD total = 0;
+    DWORD celt;
+    IDiaSymbol sym;
+    while (enumSymbols.Next(1, &sym, &celt) == S_OK && celt == 1)
+    {
+        DWORD symTag;
+        sym.get_symTag(&symTag) == S_OK || assert(false, "failed to read symbol tag");
+        if (cast(SymTagEnum)symTag == tag)
+            total++;
+        total += countSymbolsByTag(sym, tag);
+        sym.Release();
+    }
+    enumSymbols.Release();
+    return total;
+}
+
+void test17581(IDiaSession session, IDiaSymbol globals)
+{
+    IDiaSymbol funcsym = searchSymbol(globals, cPrefix ~ test17581.mangleof);
+    assert(funcsym, "symbol test17581 not found");
+
+    auto blockCount = countSymbolsByTag(funcsym, SymTagEnum.SymTagBlock);
+    assert(blockCount >= 2, "expected block symbols for both for-loops");
+
+    auto labelCount = countSymbolsByTag(funcsym, SymTagEnum.SymTagLabel);
+    assert(labelCount >= 1, "expected label symbols");
 }
 
 int test19719()

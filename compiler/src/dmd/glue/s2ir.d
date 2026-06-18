@@ -364,6 +364,8 @@ void Statement_toIR(Statement s, ref IRState irs, StmtState* stmtstate)
         block* bdest = cast(block*)s.extra;
         // At last, we know which try block this label is inside
         bdest.Btry = blx.tryblock;
+        bdest.Bflags |= BFL.label;
+        bdest.BlabelName = s.ident.toChars();
 
         block_next(blx, BC.goto_, bdest);
         bc.Bsucc.push(blx.curblock);

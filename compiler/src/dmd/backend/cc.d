@@ -256,6 +256,7 @@ nothrow:
 
     uint        Bdfoidx;        // index of this block in dfo[]
     uint        Bnumber;        // sequence number of block
+    const(char)* BlabelName;    // label name, if this block begins a label statement
     union
     {
         uint _BLU;              // start of the union

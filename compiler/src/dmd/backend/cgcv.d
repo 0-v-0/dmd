@@ -1889,7 +1889,7 @@ private void cv4_func(Funcsym* s, ref symtab_t symtab)
             __gshared ushort[2] endargs = [ 2, S_ENDARG ];
             objmod.write_bytes(SegData[DEBSYM],endargs[]);
         }
-        static void beginBlock(int offset, int length)
+        static void beginBlock(Symbol* sa, int offset, int length)
         {
             if (++cntOpenBlocks >= 255)
                 return; // optlink does not like more than 255 scope blocks
