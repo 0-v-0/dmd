@@ -1368,11 +1368,52 @@ bool ctfeCmp(Loc loc, EXP op, Expression e1, Expression e2)
         return intSignedCmp(op, e1.toInteger(), e2.toInteger());
 }
 
+private StringExp arrayLiteralToString(ArrayLiteralExp ale)
+{
+    const len = ale.elements ? ale.elements.length : 0;
+    const size = ale.type.nextOf().size();
+
+    StringExp impl(T)()
+    {
+        T[] result = new T[len];
+        foreach (i; 0 .. len)
+            result[i] = cast(T)(*ale.elements)[i].isIntegerExp().getInteger();
+        return new StringExp(ale.loc, result[], len, cast(ubyte) size);
+    }
+
+    switch (size)
+    {
+        case 1:
+            return impl!char();
+        case 2:
+            return impl!wchar();
+        case 4:
+            return impl!dchar();
+        default:
+            assert(0);
+    }
+}
+
 UnionExp ctfeCat(Loc loc, Type type, Expression e1, Expression e2)
 {
     Type t1 = e1.type.toBasetype();
     Type t2 = e2.type.toBasetype();
     UnionExp ue;
+    if (type.isString())
+    {
+        if (e1.op == EXP.arrayLiteral && t1.nextOf().isIntegral())
+        {
+            e1 = arrayLiteralToString(e1.isArrayLiteralExp());
+            e1.type = type;
+            t1 = e1.type.toBasetype();
+        }
+        if (e2.op == EXP.arrayLiteral && t2.nextOf().isIntegral())
+        {
+            e2 = arrayLiteralToString(e2.isArrayLiteralExp());
+            e2.type = type;
+            t2 = e2.type.toBasetype();
+        }
+    }
     if (e2.op == EXP.string_ && e1.op == EXP.arrayLiteral && t1.nextOf().isIntegral())
     {
         // [chars] ~ string => string (only valid for CTFE)
