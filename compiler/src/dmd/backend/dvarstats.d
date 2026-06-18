@@ -34,7 +34,7 @@ version (all) // free function version
 
     void varStats_writeSymbolTable(Symbol* sfn, ref symtab_t symtab,
             void function(Symbol*) nothrow fnWriteVar, void function() nothrow fnEndArgs,
-            void function(int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
+            void function(Symbol*, int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
     {
         varStats.writeSymbolTable(sfn, symtab, fnWriteVar, fnEndArgs, fnBeginBlock, fnEndBlock);
     }
@@ -77,7 +77,7 @@ nothrow:
     // symbol table sorted by offset of variable creation
     symtab_t sortedSymtab;
     Barray!SYMIDX nextSym;      // next symbol with identifier with same hash, same size as sortedSymtab
-    int uniquecnt;        // number of variables that have unique name and don't need lexical scope
+    int uniquecnt;        // number of symbols emitted without lexical blocks
 
     // line number records for the current function
     Barray!LineOffset lineOffsets;
@@ -171,15 +171,6 @@ private bool hashSymbolIdentifiers(ref symtab_t symtab)
     return hashCollisions;
 }
 
-private bool hasUniqueIdentifier(ref symtab_t symtab, SYMIDX si)
-{
-    Symbol* sa = symtab[si];
-    for (SYMIDX sj = nextSym[si]; sj != si; sj = nextSym[sj])
-        if (strcmp(sa.Sident.ptr, symtab[sj].Sident.ptr) == 0)
-            return false;
-    return true;
-}
-
 private bool isParameter(Symbol* s)
 {
     return s.Sclass == SC.parameter || s.Sclass == SC.regpar || s.Sclass == SC.fastpar || s.Sclass == SC.shadowreg;
@@ -191,9 +182,8 @@ private symtab_t* calcLexicalScope(Symbol* sfn, return ref symtab_t symtab) retu
 {
     // make a copy of the symbol table
     // - arguments should be kept at the very beginning
-    // - variables with unique name come first (will be emitted with full function scope)
-    // - variables with duplicate names are added with ascending code offset
-    nextSym.setLength(symtab.length);
+    // - locals with lexical scopes are added with ascending code offset
+    lifeTimes.setLength(symtab.length);
     sortedSymtab.setLength(symtab.length);
 
     // reconstruct original order of arguments, see FuncDeclaration_toObjFile:
@@ -212,13 +202,6 @@ private symtab_t* calcLexicalScope(Symbol* sfn, return ref symtab_t symtab) retu
             thiscnt++;
     }
     paramcnt -= hiddencnt + thiscnt;
-    bool hashCollisions = hashSymbolIdentifiers(symtab);
-    if (!reverse && hiddencnt == 0 && !hashCollisions)
-    {
-        // without any collisions, there are no duplicate symbol names, so bail out early
-        uniquecnt = cast(int)symtab.length;
-        return &symtab;
-    }
 
     SYMIDX argcnt, hiddenidx, thisidx, paramidx;
     for (argcnt = 0; argcnt < symtab.length; argcnt++)
@@ -238,36 +221,36 @@ private symtab_t* calcLexicalScope(Symbol* sfn, return ref symtab_t symtab) retu
         sortedSymtab[idx] = sa;
     }
 
-    // find symbols with identical names, only these need lexical scope
+    // keep non-lexical locals in their original order; lexical-scope locals
+    // are sorted by code offset and emitted with scope records.
     uniquecnt = cast(int)argcnt;
-    SYMIDX dupcnt = 0;
-    for (SYMIDX sj, si = argcnt; si < symtab.length; si++)
+    SYMIDX lifecnt = 0;
+    for (SYMIDX si = argcnt; si < symtab.length; si++)
     {
         Symbol* sa = symtab[si];
-        if (!isLexicalScopeVar(sa) || hasUniqueIdentifier(symtab, si))
+        if (!isLexicalScopeVar(sa))
             sortedSymtab[uniquecnt++] = sa;
         else
-            sortedSymtab[symtab.length - 1 - dupcnt++] = sa; // fill from the top
+            lifeTimes[lifecnt++].sym = sa;
     }
     sortedSymtab.length = symtab.length;
-    if(dupcnt == 0)
-        return paramcnt > 0 ? &sortedSymtab : &symtab;
+    if (lifecnt == 0)
+        return &sortedSymtab;
 
     sortLineOffsets();
 
-    // precalc the lexical blocks to emit so that identically named symbols don't overlap
-    lifeTimes.setLength(dupcnt);
+    // precalc the lexical blocks to emit
+    lifeTimes.setLength(lifecnt);
 
-    for (SYMIDX si = 0; si < dupcnt; si++)
+    for (SYMIDX si = 0; si < lifecnt; si++)
     {
-        lifeTimes[si].sym = sortedSymtab[uniquecnt + si];
         lifeTimes[si].offCreate = cast(int)getLineOffset(lifeTimes[si].sym.lposscopestart.Slinnum);
         lifeTimes[si].offDestroy = cast(int)getLineOffset(lifeTimes[si].sym.lnoscopeend);
     }
-    qsort(lifeTimes[].ptr, dupcnt, (lifeTimes[0]).sizeof, &cmpLifeTime);
+    qsort(lifeTimes[].ptr, lifecnt, (lifeTimes[0]).sizeof, &cmpLifeTime);
 
     // ensure that an inner block does not extend beyond the end of a parent block
-    for (SYMIDX si = 0; si < dupcnt; si++)
+    for (SYMIDX si = 0; si < lifecnt; si++)
     {
         SYMIDX sj = findParentScope(lifeTimes, si);
         if(sj != SYMIDX.max && lifeTimes[si].offDestroy > lifeTimes[sj].offDestroy)
@@ -276,21 +259,21 @@ private symtab_t* calcLexicalScope(Symbol* sfn, return ref symtab_t symtab) retu
 
     // extend life time to the creation of the next symbol that is not contained in the parent scope
     // or that has the same name
-    for (SYMIDX sj, si = 0; si < dupcnt; si++)
+    for (SYMIDX sj, si = 0; si < lifecnt; si++)
     {
         SYMIDX parent = findParentScope(lifeTimes, si);
 
-        for (sj = si + 1; sj < dupcnt; sj++)
+        for (sj = si + 1; sj < lifecnt; sj++)
             if(!isParentScope(lifeTimes, parent, sj))
                 break;
             else if (strcmp(lifeTimes[si].sym.Sident.ptr, lifeTimes[sj].sym.Sident.ptr) == 0)
                 break;
 
-        lifeTimes[si].offDestroy = cast(int)(sj < dupcnt ? lifeTimes[sj].offCreate : cgstate.retoffset + cgstate.retsize); // function length
+        lifeTimes[si].offDestroy = cast(int)(sj < lifecnt ? lifeTimes[sj].offCreate : cgstate.retoffset + cgstate.retsize); // function length
     }
 
-    // store duplicate symbols back with new ordering
-    for (SYMIDX si = 0; si < dupcnt; si++)
+    // store lexical-scope symbols back with new ordering
+    for (SYMIDX si = 0; si < lifecnt; si++)
         sortedSymtab[uniquecnt + si] = lifeTimes[si].sym;
 
     return &sortedSymtab;
@@ -298,7 +281,7 @@ private symtab_t* calcLexicalScope(Symbol* sfn, return ref symtab_t symtab) retu
 
 public void writeSymbolTable(Symbol* sfn, ref symtab_t symtab,
             void function(Symbol*) nothrow fnWriteVar, void function() nothrow fnEndArgs,
-            void function(int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
+            void function(Symbol*, int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
 {
     auto symtab2 = calcLexicalScope(sfn, symtab);
 
@@ -336,7 +319,7 @@ public void writeSymbolTable(Symbol* sfn, ref symtab_t symtab,
             if (len > 0)
             {
                 if(fnBeginBlock)
-                    (*fnBeginBlock)(off, len);
+                    (*fnBeginBlock)(sa, off, len);
                 openBlocks++;
             }
             lastOffset = off;

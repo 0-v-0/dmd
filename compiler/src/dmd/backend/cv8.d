@@ -35,6 +35,7 @@ import dmd.backend.obj;
 import dmd.backend.oper;
 import dmd.common.outbuffer;
 import dmd.backend.rtlsym;
+import dmd.backend.blockopt : bo;
 import dmd.backend.symbol : globsym;
 import dmd.backend.ty;
 import dmd.backend.type;
@@ -465,7 +466,7 @@ void cv8_func_term(Symbol* sfunc)
             buf.write16(2);
             buf.write16(S_ENDARG);
         }
-        static void beginBlock(int offset, int length)
+        static void beginBlock(Symbol* sa, int offset, int length)
         {
             auto buf = currentfuncdata.f1buf;
             uint soffset = cast(uint)buf.length();
@@ -488,6 +489,42 @@ void cv8_func_term(Symbol* sfunc)
         }
     }
     varStats_writeSymbolTable(sfunc, globsym, &cv8_outsym, &cv8.endArgs, &cv8.beginBlock, &cv8.endBlock);
+
+    struct label_v3_data
+    {
+        ushort len;
+        ushort id;
+        uint offset;
+        ushort seg;
+        ubyte flags;
+        ubyte[1] name;
+    }
+
+    void emitLabels(block* b)
+    {
+        for (; b; b = b.Bnext)
+        {
+            if (!b.BlabelName)
+                continue;
+
+            auto buf = currentfuncdata.f1buf;
+            uint soffset = cast(uint)buf.length();
+            size_t namelen = strlen(b.BlabelName);
+            label_v3_data label32 = { cast(ushort)(label_v3_data.sizeof - 2 + namelen), S_LABEL_V3, 0, 0, 0, [ 0 ] };
+            buf.write(&label32, label32.sizeof - 1);
+            buf.writen(b.BlabelName, namelen);
+            buf.writeByte(0);
+
+            size_t offOffset = cast(char*)&label32.offset - cast(char*)&label32;
+            F1_Fixups f1f;
+            f1f.s = currentfuncdata.sfunc;
+            f1f.offset = cast(uint)(soffset + offOffset);
+            f1f.value = cast(uint)(b.Boffset - bo.startblock.Boffset);
+            currentfuncdata.f1fixup.write(&f1f, f1f.sizeof);
+        }
+    }
+
+    emitLabels(bo.startblock);
 
     /* Put out function return record S_RETURN
      * (VC doesn't, so we won't bother, either.)
