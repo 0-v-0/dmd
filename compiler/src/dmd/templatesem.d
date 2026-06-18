@@ -604,6 +604,157 @@ bool declareParameter(TemplateParameter _this, Scope* sc)
     assert(0); // unreachable
 }
 
+private Scope* deducedTypeScope(Loc loc, Scope* sc, scope ref TemplateParameters parameters, ref Objects dedtypes)
+{
+    if (parameters.length == 0)
+    {
+        auto sds = new ScopeDsymbol();
+        sds.symtab = new DsymbolTable();
+        return sc.push(sds);
+    }
+
+    Type maybeSemanticize(size_t idx, Type t, Scope* semScope, Type[] current)
+    {
+        if (!t)
+            return null;
+
+        if (auto tid = t.isTypeIdentifier())
+        {
+            if (!tid.idents.length)
+            {
+                auto j = templateParameterLookup(t, &parameters);
+                if (j != IDX_NOTFOUND && j != idx)
+                {
+                    if (j < current.length && current[j])
+                        return current[j].syntaxCopy();
+
+                    if (j < parameters.length)
+                    {
+                        auto tp = parameters[j];
+                        Type resolved;
+                        if (auto ttp = tp.isTemplateTypeParameter())
+                        {
+                            if (ttp.specType)
+                                resolved = maybeSemanticize(j, ttp.specType.syntaxCopy(), semScope, current);
+                            else if (ttp.defaultType)
+                                resolved = maybeSemanticize(j, ttp.defaultType.syntaxCopy(), semScope, current);
+                        }
+                        else if (auto tap = tp.isTemplateAliasParameter())
+                        {
+                            if (auto ta = isType(tap.specAlias))
+                                resolved = maybeSemanticize(j, ta.syntaxCopy(), semScope, current);
+                            else if (tap.specType)
+                                resolved = maybeSemanticize(j, tap.specType.syntaxCopy(), semScope, current);
+                            else if (auto ta = isType(tap.defaultAlias))
+                                resolved = maybeSemanticize(j, ta.syntaxCopy(), semScope, current);
+                        }
+
+                        if (resolved)
+                            return resolved;
+                    }
+
+                    return t;
+                }
+            }
+        }
+
+        auto sem = t.typeSemantic(loc, semScope);
+        if (!sem || sem.ty == Terror)
+            sem = t;
+
+        while (auto tid = sem.isTypeIdentifier())
+        {
+            if (tid.idents.length)
+                break;
+
+            auto j = templateParameterLookup(sem, &parameters);
+            if (j == IDX_NOTFOUND || j == idx)
+                break;
+
+            if (j >= current.length || !current[j])
+                break;
+
+            sem = current[j].syntaxCopy();
+        }
+
+        return sem;
+    }
+
+    Type[] materialized;
+    Scope* semScope = null;
+
+    materialized.length = parameters.length;
+    foreach (i; 0 .. parameters.length)
+    {
+        Type at = isType(dedtypes[i]);
+        if (at && at.ty == Tnone)
+            at = (cast(TypeDeduced)at).tded;
+        materialized[i] = at;
+    }
+
+    foreach (pass; 0 .. parameters.length)
+    {
+        auto sds = new ScopeDsymbol();
+        sds.symtab = new DsymbolTable();
+        Scope* curScope = sc.push(sds);
+
+        foreach (i, at; materialized)
+        {
+            if (!at)
+                continue;
+            auto ad = new AliasDeclaration(parameters[i].loc, parameters[i].ident, at.syntaxCopy());
+            ad.parent = sds;
+            if (!sds.symtabInsert(ad))
+            {
+            }
+        }
+
+        bool changed;
+        auto next = materialized.dup;
+        next.length = parameters.length;
+
+        foreach (i, tp; parameters)
+        {
+            Type at = i < materialized.length ? materialized[i] : null;
+            if (!at)
+            {
+                if (auto ttp = tp.isTemplateTypeParameter())
+                {
+                    if (ttp.specType)
+                        at = maybeSemanticize(i, ttp.specType.syntaxCopy(), curScope, materialized);
+                    else if (ttp.defaultType)
+                        at = maybeSemanticize(i, ttp.defaultType.syntaxCopy(), curScope, materialized);
+                }
+                else if (auto tap = tp.isTemplateAliasParameter())
+                {
+                    if (auto ta = isType(tap.specAlias))
+                        at = maybeSemanticize(i, ta.syntaxCopy(), curScope, materialized);
+                    else if (tap.specType)
+                        at = maybeSemanticize(i, tap.specType.syntaxCopy(), curScope, materialized);
+                    else if (auto ta = isType(tap.defaultAlias))
+                        at = maybeSemanticize(i, ta.syntaxCopy(), curScope, materialized);
+                }
+            }
+
+            if (at && (i >= materialized.length || !at.equals(materialized[i])))
+            {
+                next[i] = at;
+                changed = true;
+            }
+        }
+
+        if (semScope)
+            semScope.pop();
+        semScope = curScope;
+        materialized = next;
+
+        if (!changed)
+            break;
+    }
+
+    return semScope;
+}
+
 /************************************
  * Return hash of Objects.
  */
@@ -2695,7 +2846,14 @@ private MATCH matchArg(TemplateParameter tp, Scope* sc, RootObject oarg, size_t 
                 return matchArgNoMatch();
 
             //printf("\tcalling deduceType(): ta is %s, specType is %s\n", ta.toChars(), ttp.specType.toChars());
-            MATCH m2 = deduceType(ta, sc, ttp.specType, *parameters, dedtypes);
+            Scope* semScope = deducedTypeScope(ttp.loc, sc, *parameters, dedtypes);
+            scope(exit)
+                semScope.pop();
+            Type specType = ttp.specType.syntaxCopy().typeSemantic(ttp.loc, semScope);
+            Type semSpecType = specType;
+            if (semSpecType && semSpecType.ty != Terror)
+                specType = semSpecType;
+            MATCH m2 = deduceType(ta, sc, specType, *parameters, dedtypes);
             if (m2 == MATCH.nomatch)
             {
                 //printf("\tfailed deduceType\n");
@@ -2879,6 +3037,14 @@ private MATCH matchArg(TemplateParameter tp, Scope* sc, RootObject oarg, size_t 
             else if (auto se = ea.isScopeExp())
                 sa = se.sds;
         }
+        if (tap.specAlias && ea && (ea.op == EXP.arrayLiteral || ea.op == EXP.null_))
+        {
+            if (Type tspec = isType(tap.specAlias))
+            {
+                ta = tspec;
+                sa = tap.specAlias;
+            }
+        }
         if (sa)
         {
             if ((cast(Dsymbol)sa).isAggregateDeclaration())
@@ -2889,11 +3055,14 @@ private MATCH matchArg(TemplateParameter tp, Scope* sc, RootObject oarg, size_t 
              */
             if (tap.specType)
             {
-                tap.specType = typeSemantic(tap.specType, tap.loc, sc);
+                Scope* semScope = deducedTypeScope(tap.loc, sc, *parameters, dedtypes);
+                scope(exit)
+                    semScope.pop();
+                Type specType = tap.specType.syntaxCopy().typeSemantic(tap.loc, semScope);
                 Declaration d = (cast(Dsymbol)sa).isDeclaration();
                 if (!d)
                     return matchArgNoMatch();
-                if (!d.type.equals(tap.specType))
+                if (!d.type.equals(specType))
                     return matchArgNoMatch();
             }
         }
@@ -2904,7 +3073,11 @@ private MATCH matchArg(TemplateParameter tp, Scope* sc, RootObject oarg, size_t 
             {
                 if (tap.specType)
                 {
-                    if (!ea.type.equals(tap.specType))
+                    Scope* semScope = deducedTypeScope(tap.loc, sc, *parameters, dedtypes);
+                    scope(exit)
+                        semScope.pop();
+                    Type specType = tap.specType.syntaxCopy().typeSemantic(tap.loc, semScope);
+                    if (!ea.type.equals(specType))
                         return matchArgNoMatch();
                 }
             }
@@ -4627,6 +4800,19 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
                     argi = DEFAULT_ARGI;
             }
 
+            Scope* semScope = paramscope;
+            Scope* semScopePush = null;
+            if (parami > ntargs)
+            {
+                semScopePush = deducedTypeScope(fd.loc, paramscope, *td.parameters, *dedtypes);
+                semScope = semScopePush;
+            }
+            scope(exit)
+            {
+                if (semScopePush)
+                    semScopePush.pop();
+            }
+
             /* See function parameters which wound up
              * as part of a template tuple parameter.
              */
@@ -5002,8 +5188,58 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
                 if (fparameters.varargs == VarArg.typesafe && parami + 1 == nfparams && argi + 1 < fargs.length)
                     goto Lvarargs;
 
+                bool isEmptyArrayLiteral = farg.op == EXP.arrayLiteral && (cast(ArrayLiteralExp)farg).elements.length == 0;
                 uint im = 0;
-                MATCH m = deduceType(oarg, paramscope, prmtype, *td.parameters, *dedtypes, &im, inferStart);
+                MATCH m = MATCH.nomatch;
+                bool trySemanticsFirst = semScopePush && (farg.op == EXP.null_ || isEmptyArrayLiteral);
+                if (trySemanticsFirst)
+                {
+                    Type semPrmtype = prmtype.syntaxCopy().trySemantic(fd.loc, semScope);
+                    if (semPrmtype)
+                    {
+                        RootObject semOarg = oarg;
+                        if (farg.op == EXP.null_ || isEmptyArrayLiteral)
+                        {
+                            auto semArg = farg.copy();
+                            semArg.type = semPrmtype;
+                            semOarg = semArg;
+                        }
+                        m = deduceType(semOarg, paramscope, prmtype, *td.parameters, *dedtypes, &im, inferStart);
+                        if (m != MATCH.nomatch)
+                            goto Ldeduced;
+                        m = deduceType(semOarg, paramscope, semPrmtype, *td.parameters, *dedtypes, &im, inferStart);
+                        if (m != MATCH.nomatch)
+                            goto Ldeduced;
+                    }
+                }
+
+                m = deduceType(oarg, paramscope, prmtype, *td.parameters, *dedtypes, &im, inferStart);
+                if (m == MATCH.nomatch)
+                {
+                    auto tmpdedtypes = new Objects(dedtypes.length);
+                    memcpy(tmpdedtypes.tdata(), dedtypes.tdata(), dedtypes.length * (void*).sizeof);
+                    m = deduceType(oarg, paramscope, prmtype, *td.parameters, *tmpdedtypes, &im, inferStart);
+                    if (m != MATCH.nomatch)
+                        memcpy(dedtypes.tdata(), tmpdedtypes.tdata(), dedtypes.length * (void*).sizeof);
+                }
+                if (!trySemanticsFirst && semScopePush && m == MATCH.nomatch)
+                {
+                    Type semPrmtype = prmtype.syntaxCopy().trySemantic(fd.loc, semScope);
+                    if (semPrmtype)
+                    {
+                        RootObject semOarg = oarg;
+                        if (farg.op == EXP.null_ || isEmptyArrayLiteral)
+                        {
+                            auto semArg = farg.copy();
+                            semArg.type = semPrmtype;
+                            semOarg = semArg;
+                        }
+                        m = deduceType(semOarg, paramscope, semPrmtype, *td.parameters, *dedtypes, &im, inferStart);
+                        if (m != MATCH.nomatch)
+                            goto Ldeduced;
+                    }
+                }
+            Ldeduced:
                 //printf("\tL%d deduceType m = %d, im = x%x, inoutMatch = x%x\n", __LINE__, m, im, inoutMatch);
                 inoutMatch |= im;
 
