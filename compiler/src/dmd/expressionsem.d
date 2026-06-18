@@ -17170,6 +17170,17 @@ Expression toLvalue(Expression _this, Scope* sc, const(char)* action, Expression
         action = "create lvalue of";
 
     assert(eorig);
+    void checkUnsafeCastLvalue(Expression exp)
+    {
+        if (auto ce = exp.isCastExp())
+        {
+            with (ce)
+            if (!trusted && !e1.type.pointerTo().implicitConvTo(to.pointerTo()))
+                sc.setUnsafePreview(FeatureState.default_, false, loc,
+                    "using the result of a cast from `%s` to `%s` as an lvalue",
+                    e1.type, to);
+        }
+    }
     Expression visit(Expression _this)
     {
         // BinaryAssignExp does not have an EXP associated
@@ -17319,12 +17330,7 @@ Expression toLvalue(Expression _this, Scope* sc, const(char)* action, Expression
         }
         if (_this.isLvalue())
         {
-            with (_this)
-            if (!trusted && !e1.type.pointerTo().implicitConvTo(to.pointerTo()))
-                sc.setUnsafePreview(FeatureState.default_, false, loc,
-                    "using the result of a cast from `%s` to `%s` as an lvalue",
-                    e1.type, to);
-
+            checkUnsafeCastLvalue(_this);
             return _this;
         }
         return visit(_this);
@@ -17370,7 +17376,10 @@ Expression toLvalue(Expression _this, Scope* sc, const(char)* action, Expression
     Expression visitIndex(IndexExp _this)
     {
         if (_this.isLvalue())
+        {
+            checkUnsafeCastLvalue(_this.e1);
             return _this;
+        }
         return visit(_this);
     }
 
