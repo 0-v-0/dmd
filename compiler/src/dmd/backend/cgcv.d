@@ -859,6 +859,537 @@ L1:
     return typidx;
 }
 
+/******************************************
+ * Write out symbol s.
+ */
+
+@trusted
+private void cv4_outsym(Symbol* s)
+{
+    uint len;
+    type* t;
+    uint length;
+    uint u;
+    tym_t tym;
+    const(char)* id;
+    ubyte* debsym = null;
+    ubyte[64] buf = void;
+
+    //printf("cv4_outsym(%s)\n",s.Sident.ptr);
+    symbol_debug(s);
+    if (s.Sflags & SFLnodebug)
+        return;
+    t = s.Stype;
+    type_debug(t);
+    tym = tybasic(t.Tty);
+    if (tyfunc(tym) && s.Sclass != SC.typedef_)
+    {   int framedatum,targetdatum,fd;
+        char idfree;
+        idx_t typidx;
+
+        if (s != funcsym_p)
+            return;
+        id = s.prettyIdent ? s.prettyIdent : s.Sident.ptr;
+        len = cv_stringbytes(id);
+
+        // Length of record
+        length = 2 + 2 + 4 * 3 + _tysize[TYint] * 4 + 2 + cgcv.sz_idx + 1;
+        debsym = (length + len <= (buf).sizeof) ? buf.ptr : cast(ubyte*) malloc(length + len);
+        if (!debsym)
+            err_nomem();
+        memset(debsym,0,length + len);
+
+        // Symbol type
+        u = (s.Sclass == SC.static_) ? S_LPROC16 : S_GPROC16;
+        if (I32)
+            u += S_GPROC32 - S_GPROC16;
+        TOWORD(debsym + 2,u);
+
+        if (config.fulltypes == CV4)
+        {
+            // Offsets
+            if (I32)
+            {   TOLONG(debsym + 16,cast(uint)s.Ssize);           // proc length
+                TOLONG(debsym + 20,cast(uint)cgstate.startoffset);        // debug start
+                TOLONG(debsym + 24,cast(uint)cgstate.retoffset);          // debug end
+                u = 28;                                 // offset to fixup
+            }
+            else
+            {   TOWORD(debsym + 16,cast(uint)s.Ssize);           // proc length
+                TOWORD(debsym + 18,cast(uint)cgstate.startoffset);        // debug start
+                TOWORD(debsym + 20,cast(uint)cgstate.retoffset);          // debug end
+                u = 22;                                 // offset to fixup
+            }
+            length += cv_namestring(debsym + u + _tysize[TYint] + 2 + cgcv.sz_idx + 1,id);
+            typidx = cv4_symtypidx(s);
+            TOIDX(debsym + u + _tysize[TYint] + 2,typidx);     // proc type
+            debsym[u + _tysize[TYint] + 2 + cgcv.sz_idx] = tyfarfunc(tym) ? 4 : 0;
+            TOWORD(debsym,length - 2);
+        }
+        else
+        {
+            // Offsets
+            if (I32)
+            {   TOLONG(debsym + 16 + cgcv.sz_idx,cast(uint)s.Ssize);             // proc length
+                TOLONG(debsym + 20 + cgcv.sz_idx,cast(uint)cgstate.startoffset);  // debug start
+                TOLONG(debsym + 24 + cgcv.sz_idx,cast(uint)cgstate.retoffset);            // debug end
+                u = 28;                                         // offset to fixup
+            }
+            else
+            {   TOWORD(debsym + 16 + cgcv.sz_idx,cast(uint)s.Ssize);             // proc length
+                TOWORD(debsym + 18 + cgcv.sz_idx,cast(uint)cgstate.startoffset);  // debug start
+                TOWORD(debsym + 20 + cgcv.sz_idx,cast(uint)cgstate.retoffset);            // debug end
+                u = 22;                                         // offset to fixup
+            }
+            u += cgcv.sz_idx;
+            length += cv_namestring(debsym + u + _tysize[TYint] + 2 + 1,id);
+            typidx = cv4_symtypidx(s);
+            TOIDX(debsym + 16,typidx);                  // proc type
+            debsym[u + _tysize[TYint] + 2] = tyfarfunc(tym) ? 4 : 0;
+            TOWORD(debsym,length - 2);
+        }
+
+        uint soffset = cast(uint)Offset(DEBSYM);
+        objmod.write_bytes(SegData[DEBSYM],debsym[0 .. length]);
+
+        // Put out fixup for function start offset
+        objmod.reftoident(DEBSYM,soffset + u,s,0,CF.seg | CF.off);
+    }
+    else
+    {   targ_size_t base;
+        int reg;
+        uint fd;
+        uint idx1,idx2;
+        uint value;
+        uint fixoff;
+        idx_t typidx;
+
+        typidx = cv4_typidx(t);
+        id = s.prettyIdent ? s.prettyIdent : prettyident(s);
+        len = cast(uint)strlen(id);
+        debsym = (39 + IDOHD + len <= (buf).sizeof) ? buf.ptr : cast(ubyte*) malloc(39 + IDOHD + len);
+        if (!debsym)
+            err_nomem();
+        switch (s.Sclass)
+        {
+            case SC.parameter:
+            case SC.regpar:
+                if (s.Sfl == FL.reg)
+                {
+                    s.Sfl = FL.para;
+                    cv4_outsym(s);
+                    s.Sfl = FL.reg;
+                    goto case_register;
+                }
+                base = cgstate.Para.size - cgstate.BPoff;    // cancel out add of BPoff
+                goto L1;
+
+            case SC.auto_:
+                if (s.Sfl == FL.reg)
+                    goto case_register;
+            case_auto:
+                base = cgstate.Auto.size;
+            L1:
+                if (s.Sscope) // local variables moved into the closure cannot be emitted directly
+                    goto Lret;
+                TOWORD(debsym + 2,I32 ? S_BPREL32 : S_BPREL16);
+                if (config.fulltypes == CV4)
+                {   TOOFFSET(debsym + 4,s.Soffset + base + cgstate.BPoff);
+                    TOIDX(debsym + 4 + _tysize[TYint],typidx);
+                }
+                else
+                {   TOOFFSET(debsym + 4 + cgcv.sz_idx,s.Soffset + base + cgstate.BPoff);
+                    TOIDX(debsym + 4,typidx);
+                }
+                length = 2 + 2 + _tysize[TYint] + cgcv.sz_idx;
+                length += cv_namestring(debsym + length,id);
+                TOWORD(debsym,length - 2);
+                break;
+
+            case SC.bprel:
+                base = -cgstate.BPoff;
+                goto L1;
+
+            case SC.fastpar:
+                if (s.Sfl != FL.reg)
+                {   base = cgstate.Fast.size;
+                    goto L1;
+                }
+                goto case_register;
+
+            case SC.register:
+                if (s.Sfl != FL.reg)
+                    goto case_auto;
+                goto case_register;
+
+            case SC.pseudo:
+            case_register:
+                TOWORD(debsym + 2,S_REGISTER);
+                reg = cv_regnum(s);
+                TOIDX(debsym + 4,typidx);
+                TOWORD(debsym + 4 + cgcv.sz_idx,reg);
+                length = 2 * 3 + cgcv.sz_idx;
+                length += 1 + cv_namestring(debsym + length,id);
+                TOWORD(debsym,length - 2);
+                break;
+
+            case SC.extern_:
+            case SC.comdef:
+                // Common blocks have a non-zero Sxtrnnum and an UNKNOWN seg
+                if (!(s.Sxtrnnum && s.Sseg == UNKNOWN)) // if it's not really a common block
+                {
+                        goto Lret;
+                }
+                goto case;
+            case SC.global:
+            case SC.comdat:
+                u = S_GDATA16;
+                goto L2;
+
+            case SC.static_:
+            case SC.locstat:
+                u = S_LDATA16;
+            L2:
+                if (I32)
+                    u += S_GDATA32 - S_GDATA16;
+                TOWORD(debsym + 2,u);
+                if (config.fulltypes == CV4)
+                {
+                    fixoff = 4;
+                    length = 2 + 2 + _tysize[TYint] + 2;
+                    TOOFFSET(debsym + fixoff,s.Soffset);
+                    TOWORD(debsym + fixoff + _tysize[TYint],0);
+                    TOIDX(debsym + length,typidx);
+                }
+                else
+                {
+                    fixoff = 8;
+                    length = 2 + 2 + _tysize[TYint] + 2;
+                    TOOFFSET(debsym + fixoff,s.Soffset);
+                    TOWORD(debsym + fixoff + _tysize[TYint],0);        // segment
+                    TOIDX(debsym + 4,typidx);
+                }
+                length += cgcv.sz_idx;
+                length += cv_namestring(debsym + length,id);
+                TOWORD(debsym,length - 2);
+                assert(length <= 40 + len);
+
+                if (s.Sseg == UNKNOWN || s.Sclass == SC.comdat) // if common block
+                {
+                    if (config.exe & EX_flat)
+                    {
+                        fd = 0x16;
+                        idx1 = DGROUPIDX;
+                        idx2 = s.Sxtrnnum;
+                    }
+                    else
+                    {
+                        fd = 0x26;
+                        idx1 = idx2 = s.Sxtrnnum;
+                    }
+                }
+                else if (s.ty() & (mTYfar | mTYcs))
+                {
+                    fd = 0x04;
+                    idx1 = idx2 = SegData[s.Sseg].segidx;
+                }
+                else
+                {   fd = 0x14;
+                    idx1 = DGROUPIDX;
+                    idx2 = SegData[s.Sseg].segidx;
+                }
+                /* Because of the linker limitations, the length cannot
+                 * exceed 0x1000.
+                 * See optlink\cv\cvhashes.asm
+                 */
+                assert(length <= 0x1000);
+                if (idx2 != 0)
+                {
+                    assert(0);
+                }
+                goto Lret;
+
+static if (1)
+{
+            case SC.typedef_:
+                s.Stypidx = typidx;
+                reset_symbuf.write((&s)[0 .. 1]);
+                goto L4;
+
+            case SC.struct_:
+                if (s.Sstruct.Sflags & STRnotagname)
+                    goto Lret;
+                goto L4;
+
+            case SC.enum_:
+            L4:
+                // Output a 'user-defined type' for the tag name
+                TOWORD(debsym + 2,S_UDT);
+                TOIDX(debsym + 4,typidx);
+                length = 2 + 2 + cgcv.sz_idx;
+                length += cv_namestring(debsym + length,id);
+                TOWORD(debsym,length - 2);
+                break;
+
+            case SC.const_:
+                // The only constants are enum members
+                value = cast(uint)el_tolong(s.Svalue);
+                TOWORD(debsym + 2,S_CONST);
+                TOIDX(debsym + 4,typidx);
+                length = 4 + cgcv.sz_idx;
+                cv4_storenumeric(debsym + length,value);
+                length += cv4_numericbytes(value);
+                length += cv_namestring(debsym + length,id);
+                TOWORD(debsym,length - 2);
+                break;
+}
+            default:
+                goto Lret;
+        }
+        assert(length <= 40 + len);
+        objmod.write_bytes(SegData[DEBSYM],debsym[0 .. length]);
+    }
+Lret:
+    if (debsym != buf.ptr)
+        free(debsym);
+}
+
+
+/******************************************
+ * Write out symbol table for current function.
+ */
+
+@trusted
+private void cv4_func(Funcsym* s, ref symtab_t symtab)
+{
+    int endarg;
+
+    cv4_outsym(s);              // put out function symbol
+    __gshared Funcsym* sfunc;
+    __gshared int cntOpenBlocks;
+    sfunc = s;
+    cntOpenBlocks = 0;
+
+    struct cv4
+    {
+    nothrow:
+        // record for CV record S_BLOCK32
+        struct block32_data
+        {
+            ushort len;
+            ushort id;
+            uint pParent;
+            uint pEnd;
+            uint length;
+            uint offset;
+            ushort seg;
+            ubyte[2] name;
+        }
+
+
+        static void endArgs()
+        {
+            __gshared ushort[2] endargs = [ 2, S_ENDARG ];
+            objmod.write_bytes(SegData[DEBSYM],endargs[]);
+        }
+        static void beginBlock(Symbol* sa, int offset, int length)
+        {
+            if (++cntOpenBlocks >= 255)
+                return; // optlink does not like more than 255 scope blocks
+
+            uint soffset = cast(uint)Offset(DEBSYM);
+            // parent and end to be filled by linker
+            block32_data block32 = { (block32_data).sizeof - 2, S_BLOCK32, 0, 0, length, 0, 0, [ 0, '\0' ] };
+            objmod.write_bytes(SegData[DEBSYM], (&block32)[0 .. 1]);
+            size_t offOffset = cast(char*)&block32.offset - cast(char*)&block32;
+            objmod.reftoident(DEBSYM, soffset + offOffset, sfunc, offset + sfunc.Soffset, CF.seg | CF.off);
+        }
+        static void endBlock()
+        {
+            if (cntOpenBlocks-- >= 255)
+                return; // optlink does not like more than 255 scope blocks
+
+            __gshared ushort[2] endargs = [ 2, S_END ];
+            objmod.write_bytes(SegData[DEBSYM],endargs[]);
+        }
+    }
+
+    varStats_writeSymbolTable(sfunc, symtab, &cv4_outsym, &cv4.endArgs, &cv4.beginBlock, &cv4.endBlock);
+
+    // Put out function return record
+    if (1)
+    {
+        ubyte[2+2+2+1+1+4] sreturn;
+        ushort flags;
+        ubyte style;
+        tym_t ty;
+        tym_t tyret;
+        uint u;
+
+        u = 2+2+1;
+        ty = tybasic(s.ty());
+
+        flags = tyrevfunc(ty) ? 0 : 1;
+        flags |= typfunc(ty) ? 0 : 2;
+        TOWORD(sreturn.ptr + 4,flags);
+
+        tyret = tybasic(s.Stype.Tnext.Tty);
+        switch (tyret)
+        {
+            case TYvoid:
+            default:
+                style = 0;
+                break;
+
+            case TYbool:
+            case TYchar:
+            case TYschar:
+            case TYuchar:
+                sreturn[7] = 1;
+                sreturn[8] = 1;         // AL
+                goto L1;
+
+            case TYwchar_t:
+            case TYchar16:
+            case TYshort:
+            case TYushort:
+                goto case_ax;
+
+            case TYint:
+            case TYuint:
+            case TYsptr:
+            case TYcptr:
+            case TYnullptr:
+            case TYnptr:
+            case TYnref:
+                if (I32)
+                    goto case_eax;
+                else
+                    goto case_ax;
+
+            case TYfloat:
+            case TYifloat:
+                if (config.exe & EX_flat)
+                    goto case_st0;
+                goto case;
+
+            case TYlong:
+            case TYulong:
+            case TYdchar:
+                if (I32)
+                    goto case_eax;
+                else
+                    goto case_dxax;
+
+            case TYfptr:
+            case TYhptr:
+                if (I32)
+                    goto case_edxeax;
+                else
+                    goto case_dxax;
+
+            case TYvptr:
+                if (I32)
+                    goto case_edxebx;
+                else
+                    goto case_dxbx;
+
+            case TYdouble:
+            case TYidouble:
+            case TYdouble_alias:
+                if (config.exe & EX_flat)
+                    goto case_st0;
+                if (I32)
+                    goto case_edxeax;
+                else
+                    goto case_axbxcxdx;
+
+            case TYllong:
+            case TYullong:
+                assert(I32);
+                goto case_edxeax;
+
+            case TYreal:
+            case TYireal:
+                goto case_st0;
+
+            case TYcfloat:
+            case TYcdouble:
+            case TYcreal:
+                goto case_st01;
+
+            case_ax:
+                sreturn[7] = 1;
+                sreturn[8] = 9;         // AX
+                goto L1;
+
+            case_eax:
+                sreturn[7] = 1;
+                sreturn[8] = 17;        // EAX
+                goto L1;
+
+
+            case_dxax:
+                sreturn[7] = 2;
+                sreturn[8] = 11;        // DX
+                sreturn[9] = 9;         // AX
+                goto L1;
+
+            case_dxbx:
+                sreturn[7] = 2;
+                sreturn[8] = 11;        // DX
+                sreturn[9] = 12;        // BX
+                goto L1;
+
+            case_axbxcxdx:
+                sreturn[7] = 4;
+                sreturn[8] = 9;         // AX
+                sreturn[9] = 12;        // BX
+                sreturn[10] = 10;       // CX
+                sreturn[11] = 11;       // DX
+                goto L1;
+
+            case_edxeax:
+                sreturn[7] = 2;
+                sreturn[8] = 19;        // EDX
+                sreturn[9] = 17;        // EAX
+                goto L1;
+
+            case_edxebx:
+                sreturn[7] = 2;
+                sreturn[8] = 19;        // EDX
+                sreturn[9] = 20;        // EBX
+                goto L1;
+
+            case_st0:
+                sreturn[7] = 1;
+                sreturn[8] = 128;       // ST0
+                goto L1;
+
+            case_st01:
+                sreturn[7] = 2;
+                sreturn[8] = 128;       // ST0 (imaginary)
+                sreturn[9] = 129;       // ST1 (real)
+                goto L1;
+
+            L1:
+                style = 1;
+                u += sreturn[7] + 1;
+                break;
+        }
+        sreturn[6] = style;
+
+        TOWORD(sreturn.ptr,u);
+        TOWORD(sreturn.ptr + 2,S_RETURN);
+        objmod.write_bytes(SegData[DEBSYM],sreturn[0 .. u + 2]);
+    }
+
+    // Put out end scope
+    {   __gshared ushort[2] endproc = [ 2,S_END ];
+
+        objmod.write_bytes(SegData[DEBSYM],endproc[]);
+    }
+}
 //////////////////////////////////////////////////////////
 
 /******************************************
