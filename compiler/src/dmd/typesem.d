@@ -4526,7 +4526,6 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
     Type visitMixin(TypeMixin mtype)
     {
         //printf("TypeMixin::semantic() %s\n", toChars());
-
         Expression e;
         Type t;
         Dsymbol s;
