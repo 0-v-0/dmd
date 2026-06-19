@@ -583,12 +583,14 @@ extern(D):
      */
     void mangleTemplateAlias(RootObject o, Dsymbol sym)
     {
+        import std.string : fromStringz, toStringz;
+
         Dsymbol d = isDsymbol(o);
         Expression e = isExpression(o);
         FuncDeclaration fd = d ? d.isFuncDeclaration() : null;
 
-        if (d && d.isTemplateDeclaration())
-            d.isTemplateDeclaration().computeOneMember();
+        const(char)* symPretty = toStringz(fromStringz(sym.toPrettyChars));
+        const(char)* oPretty = toStringz(fromStringz(o.toErrMsg()));
 
         if (fd)
         {
@@ -605,31 +607,34 @@ extern(D):
         else if (d && d.isTemplateDeclaration() && d.isTemplateDeclaration().onemember)
         {
             Dsymbol ds = d.isTemplateDeclaration().onemember;
-            if (ds.isUnionDeclaration())
+            if (ds && (ds.isUnionDeclaration() || ds.isStructDeclaration() || ds.isClassDeclaration()))
             {
-                buf.writeByte('T');
-            }
-            else if (ds.isStructDeclaration())
-            {
-                buf.writeByte('U');
-            }
-            else if (ds.isClassDeclaration())
-            {
-                buf.writeByte('V');
+                if (ds.isUnionDeclaration())
+                {
+                    buf.writeByte('T');
+                }
+                else if (ds.isStructDeclaration())
+                {
+                    buf.writeByte('U');
+                }
+                else if (ds.isClassDeclaration())
+                {
+                    buf.writeByte('V');
+                }
+                mangleIdent(d);
             }
             else
             {
-                eSink.error(sym.loc, "%s `%s` internal compiler error: C++ templates support only integral value, type parameters, alias templates and alias function parameters",
-                    sym.kind, sym.toPrettyChars);
+                eSink.error(sym.loc, "%s `%s` C++ template parameter `%s` is not supported", sym.kind, symPretty, oPretty);
                 errors = true;
                 return;
             }
-            mangleIdent(d);
         }
         else
         {
-            eSink.error(sym.loc, "%s `%s` internal compiler error: `%s` is unsupported parameter for C++ template", sym.kind, sym.toPrettyChars, o.toErrMsg());
+            eSink.error(sym.loc, "%s `%s` C++ template parameter `%s` is not supported", sym.kind, symPretty, oPretty);
             errors = true;
+            return;
         }
     }
 
@@ -760,6 +765,11 @@ extern(D):
             if (tv)
             {
                 tmp.mangleTemplateValue(o, tv, actualti);
+                if (tmp.errors)
+                {
+                    errors = true;
+                    return;
+                }
             }
             else if (!tp || tp.isTemplateTypeParameter())
             {
@@ -772,10 +782,20 @@ extern(D):
                     return;
                 }
                 tmp.mangleTemplateType(o);
+                if (tmp.errors)
+                {
+                    errors = true;
+                    return;
+                }
             }
             else if (tp.isTemplateAliasParameter())
             {
                 tmp.mangleTemplateAlias(o, actualti);
+                if (tmp.errors)
+                {
+                    errors = true;
+                    return;
+                }
             }
             else
             {
