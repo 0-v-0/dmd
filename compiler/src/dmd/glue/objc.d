@@ -645,7 +645,8 @@ static:
     Symbol* getModuleInfo(/*const*/ ref ClassDeclarations classes,
         /*const*/ ref ClassDeclarations categories)
     {
-        assert(!moduleInfo); // only allow once per object file
+        if (moduleInfo)
+            return moduleInfo;
 
         auto dtb = DtBuilder(0);
 
@@ -660,6 +661,7 @@ static:
         symbol.Sseg = Segments[Segments.Id.classlist];
         outdata(symbol);
 
+        moduleInfo = symbol;
         getImageInfo(); // make sure we also generate image info
 
         return moduleInfo;
