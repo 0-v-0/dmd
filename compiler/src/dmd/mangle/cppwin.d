@@ -600,28 +600,8 @@ extern(D):
             buf.writeByte('E');
             mangleVariable((cast(VarExp)e).var.isVarDeclaration());
         }
-        else if (d && d.isTemplateDeclaration() && d.isTemplateDeclaration().onemember)
+        else if (d && d.isTemplateDeclaration())
         {
-            Dsymbol ds = d.isTemplateDeclaration().onemember;
-            if (ds.isUnionDeclaration())
-            {
-                buf.writeByte('T');
-            }
-            else if (ds.isStructDeclaration())
-            {
-                buf.writeByte('U');
-            }
-            else if (ds.isClassDeclaration())
-            {
-                buf.writeByte('V');
-            }
-            else
-            {
-                eSink.error(sym.loc, "%s `%s` internal compiler error: C++ templates support only integral value, type parameters, alias templates and alias function parameters",
-                    sym.kind, sym.toPrettyChars);
-                errors = true;
-                return;
-            }
             mangleIdent(d);
         }
         else
