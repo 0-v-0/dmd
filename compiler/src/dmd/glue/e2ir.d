@@ -4514,6 +4514,17 @@ elem* ExpressionsToStaticArray(ref IRState irs, Loc loc, Expressions* exps, Symb
     Symbol* stmp = *psym;
 
     elem* e = null;
+    if (szelem == 0)
+    {
+        foreach (el; *exps)
+        {
+            if (!el)
+                el = basis;
+            e = el_combine(e, toElem(el, irs));
+        }
+        return e;
+    }
+
     for (size_t i = 0; i < dim; )
     {
         Expression el = (*exps)[i];
