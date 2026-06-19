@@ -4697,9 +4697,6 @@ void cdrelconst(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
          * current segment (i.e. CS doesn't have the right value in it)
          */
         Symbol* s = e.Vsym;
-        if (s.Sfl == FL.datseg)
-        {   assert(0);
-        }
         sclass = s.Sclass;
         const ety = tybasic(s.ty());
         if ((tyfarfunc(ety) || ety == TYifunc) &&
