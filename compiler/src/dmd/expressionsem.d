@@ -19259,6 +19259,8 @@ void lowerNonArrayAggregate(StaticForeach sfe, Scope* sc)
 {
     import dmd.statement;
 
+    // Stop runaway CTFE on an infinite range before the growing array OOMs.
+    enum maxStaticForeachIterations = global.recursionLimit * 20;
     auto nvars = sfe.aggrfe ? sfe.aggrfe.parameters.length : 1;
     auto aloc = sfe.aggrfe ? sfe.aggrfe.aggr.loc : sfe.rangefe.lwr.loc;
     // We need three sets of foreach loop variables because the
@@ -19336,8 +19338,24 @@ void lowerNonArrayAggregate(StaticForeach sfe, Scope* sc)
     else
     {
         s2.push(new ExpStatement(aloc, vard));
+        auto iter = new VarDeclaration(aloc, Type.tsize_t, Identifier.generateId("__iter"),
+            new ExpInitializer(aloc, new IntegerExp(aloc, 0, Type.tsize_t)), STC.temp);
+        s2.push(new ExpStatement(aloc, iter));
+
         auto catass = new CatAssignExp(aloc, new IdentifierExp(aloc, idres), res[1]);
-        s2.push(sfe.createForeach(aloc, pparams[1], new ExpStatement(aloc, catass)));
+        auto loopstmts = new Statements();
+        loopstmts.push(new ExpStatement(aloc, catass));
+
+        auto msg = new StringExp(aloc, "static foreach over non-terminating range");
+        msg.type = Type.tstring;
+        auto guard = new AssertExp(aloc,
+            new CmpExp(EXP.lessOrEqual, aloc,
+                new PreExp(EXP.prePlusPlus, aloc, new VarExp(aloc, iter)),
+                new IntegerExp(aloc, maxStaticForeachIterations, Type.tsize_t)),
+            msg);
+        loopstmts.push(new ExpStatement(aloc, guard));
+
+        s2.push(sfe.createForeach(aloc, pparams[1], new CompoundStatement(aloc, loopstmts)));
         s2.push(new ReturnStatement(aloc, new IdentifierExp(aloc, idres)));
     }
 
