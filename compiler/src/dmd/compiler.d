@@ -19,7 +19,7 @@ import dmd.ctfeexpr;
 import dmd.dmodule;
 import dmd.errors;
 import dmd.expression;
-import dmd.expressionsem : toInteger, toReal;
+import dmd.expressionsem : toImaginary, toInteger, toReal;
 import dmd.id;
 import dmd.identifier;
 import dmd.mtype;
@@ -80,6 +80,13 @@ extern (C++) struct Compiler
             break;
         case Tfloat64:
             u.float64value = cast(double) e.toReal();
+            break;
+        case Timaginary32:
+            u.float32value = cast(float) e.toImaginary();
+            break;
+        case Timaginary64:
+        case Timaginary80:
+            u.float64value = cast(double) e.toImaginary();
             break;
         case Tfloat80:
             assert(e.type.size() == 8); // 64-bit target `real`
