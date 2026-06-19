@@ -362,11 +362,13 @@ elem* getEthis(Loc loc, ref IRState irs, Dsymbol fd, Dsymbol fdp = null, Dsymbol
             {
                 /* Enclosing function is a function.
                  */
-                // Error should have been caught by front end
-                assert(thisfd.isNested() || thisfd.vthis);
-
-                // pick one context
-                ethis = fixEthis2(ethis, thisfd, thisfd.followInstantiationContext(ctxt0, ctxt1));
+                // Some template-instantiation parent chains can include
+                // ordinary functions here; they do not need a context hop.
+                if (thisfd.isNested() || thisfd.vthis)
+                {
+                    // pick one context
+                    ethis = fixEthis2(ethis, thisfd, thisfd.followInstantiationContext(ctxt0, ctxt1));
+                }
             }
             else
             {
