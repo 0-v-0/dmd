@@ -74,6 +74,28 @@ import dmd.timetrace;
 import dmd.utils;
 import dmd.vsoptions;
 
+version (Windows)
+{
+    import core.sys.windows.winbase : SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX, SetErrorMode;
+
+    version (CRuntime_Microsoft)
+    extern (C) uint _set_abort_behavior(uint flags, uint mask) nothrow @nogc;
+
+    private enum WRITE_ABORT_MSG = 0x1;
+    private enum CALL_REPORTFAULT = 0x2;
+
+    private void disableCrashDialogs() nothrow @nogc
+    {
+        SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+
+        version (CRuntime_Microsoft)
+        {
+            // Suppress CRT abort UI and Watson reporting for crashes.
+            _set_abort_behavior(0, WRITE_ABORT_MSG | CALL_REPORTFAULT);
+        }
+    }
+}
+
 /**
  * DMD's entry point, C main.
  *
@@ -86,6 +108,9 @@ import dmd.vsoptions;
  */
 extern (C) int main(int argc, char** argv)
 {
+    version (Windows)
+        disableCrashDialogs();
+
     bool lowmem = false;
     foreach (i; 1 .. argc)
     {
