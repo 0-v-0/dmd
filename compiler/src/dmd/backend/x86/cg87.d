@@ -3076,11 +3076,15 @@ private void cdd_u64_I64(ref CGstate cg,ref CodeBuilder cdb, elem* e, ref regm_t
     regm_t retregs = mST0;
     codelem(cg,cdb,e.E1, retregs, false);
     tym_t tym = e.Ety;
-    retregs = pretregs;
+    retregs = pretregs & cg.allregs;
     if (!retregs)
-        retregs = ALLREGS;
+        retregs = cg.allregs;
+    if (retregs & (retregs - 1))
+        retregs = mask(findreg(retregs));
     const reg = allocreg(cdb,retregs,tym);
-    regm_t regm2 = ALLREGS & ~retregs & ~mAX;
+    regm_t regm2 = cg.allregs & ~mask(reg) & ~mAX;
+    if (regm2 & (regm2 - 1))
+        regm2 = mask(findreg(regm2));
     const reg2 = allocreg(cdb,regm2,tym);
     movregconst(cg,cdb,reg2,0x80000000,0);
     getregs(cdb,mask(reg2) | mAX);
