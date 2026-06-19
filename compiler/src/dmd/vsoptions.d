@@ -85,7 +85,7 @@ extern(C++) struct VSOptions
         if (getVCLibDir(x64))
             return "libcmt";
         else
-            return "msvcrt120"; // mingw replacement
+            return "msvcrt";
     }
 
     /**
@@ -263,6 +263,12 @@ private:
 
         if (UCRTVersion is null)
             UCRTVersion = getenv("UCRTVersion"w);
+
+        if (UCRTSdkDir is null)
+            UCRTSdkDir = WindowsSdkDir;
+
+        if (UCRTVersion is null)
+            UCRTVersion = WindowsSdkVersion;
 
         if (UCRTVersion is null && UCRTSdkDir !is null)
         {

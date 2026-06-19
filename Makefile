@@ -26,6 +26,21 @@ ECTAGS_FILES = compiler/dmd/*.[chd] compiler/dmd/backend/*.[chd] compiler/dmd/ro
 
 EXE:=$(if $(findstring windows,$(OS)),.exe,)
 
+ifeq (windows,$(OS))
+windows_sdk_dir := $(if $(strip $(WindowsSDKDir)),$(WindowsSDKDir),$(WindowsSdkDir))
+windows_sdk_version := $(if $(strip $(WindowsSDKVersion)),$(WindowsSDKVersion),$(WindowsSdkVersion))
+ifneq (,$(strip $(windows_sdk_dir)))
+    ifeq (,$(strip $(UniversalCRTSdkDir)))
+        export UniversalCRTSdkDir := $(windows_sdk_dir)
+    endif
+endif
+ifneq (,$(strip $(windows_sdk_version)))
+    ifeq (,$(strip $(UCRTVersion)))
+        export UCRTVersion := $(windows_sdk_version)
+    endif
+endif
+endif
+
 ifeq (,$(HOST_DMD))
     ifneq (,$(HOST_DC))
         $(warning The HOST_DC variable is deprecated, please use HOST_DMD instead.)

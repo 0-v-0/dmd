@@ -4,7 +4,7 @@ include ../common.mak
 $(OBJDIR)/%.done: extra_dflags += -betterC
 $(OBJDIR)/%.done: extra_ldlibs.d =
 
-# for the Windows MinGW CI job:
+# for legacy `-mscrtlib=msvcrt120` compatibility runs:
 ifneq (,$(findstring -mscrtlib=msvcrt120,$(DFLAGS) $(LDFLAGS.d)))
 # DFLAGS=-mscrtlib=msvcrt120 takes precedence over any command line flags, so
 # specify vcruntime140.lib explicitly for using mingw with Universal CRT.

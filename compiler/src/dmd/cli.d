@@ -727,11 +727,10 @@ dmd -cov -unittest myprog.d
             `DllMain` or `WinMain` for automatic linking. The default is $(TT libcmt)
             (release version with static linkage), the other usual alternatives are
             $(TT libcmtd), $(TT msvcrt) and $(TT msvcrtd).
-            If no Visual C installation is detected, a wrapper for the redistributable
-            VC2010 dynamic runtime library and mingw based platform import libraries will
-            be linked instead using the LLD linker provided by the LLVM project.
-            The detection can be skipped explicitly if $(TT msvcrt120) is specified as
-            $(I libname).
+            If no Visual C installation is detected, DMD falls back to the system
+            runtime and platform import libraries available from the installed toolchain.
+            The legacy $(TT msvcrt120) spelling is still accepted explicitly to skip
+            Visual C detection for compatibility.
             If $(I libname) is empty, no C runtime library is automatically linked in.",
             TargetOS.Windows,
         ),
