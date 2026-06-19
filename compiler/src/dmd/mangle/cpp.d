@@ -531,12 +531,10 @@ private final class CppMangleVisitor : Visitor
                 mangle_variable(vd, true);
                 buf.writeByte('E');
             }
-            else if (d && d.isTemplateDeclaration() && d.isTemplateDeclaration().onemember)
+            else if (d && d.isTemplateDeclaration())
             {
                 if (!substitute(d))
-                {
                     cpp_mangle_name(d, false);
-                }
             }
             else
             {
