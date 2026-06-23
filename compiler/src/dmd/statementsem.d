@@ -976,20 +976,23 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
                     tfld = fdapply.type.typeSemantic(loc, sc2).isTypeFunction();
                     goto Lget;
                 }
-                else if (tab.isTypeDelegate())
+            }
+            else if (tab.isTypeDelegate())
+            {
+                tfld = tab.nextOf().isTypeFunction();
+            }
+        Lget:
+            if (tfld)
+            {
+                //printf("tfld = %s\n", tfld.toChars());
+                if (tfld.parameterList.parameters.length == 1)
                 {
-                    tfld = tab.nextOf().isTypeFunction();
-                Lget:
-                    //printf("tfld = %s\n", tfld.toChars());
-                    if (tfld.parameterList.parameters.length == 1)
+                    Parameter p = tfld.parameterList[0];
+                    if (p.type && p.type.isTypeDelegate())
                     {
-                        Parameter p = tfld.parameterList[0];
-                        if (p.type && p.type.isTypeDelegate())
-                        {
-                            auto t = p.type.typeSemantic(loc, sc2);
-                            assert(t.ty == Tdelegate);
-                            tfld = t.nextOf().isTypeFunction();
-                        }
+                        auto t = p.type.typeSemantic(loc, sc2);
+                        assert(t.ty == Tdelegate);
+                        tfld = t.nextOf().isTypeFunction();
                     }
                 }
             }
@@ -3181,6 +3184,7 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
 
         if (ss.exp)
         {
+            CommaExp.allow(ss.exp);
             ss.exp = ss.exp.expressionSemantic(sc);
             ss.exp = resolveProperties(sc, ss.exp);
             ss.exp = ss.exp.optimize(WANTvalue);
@@ -3222,6 +3226,7 @@ Statement statementSemanticVisit(Statement s, Scope* sc)
                       cd.toErrMsg());
                 return setError();
             }
+
             version (all)
             {
                 /* Rewrite as:
