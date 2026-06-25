@@ -1056,6 +1056,35 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         }
         return (new TypeExp(e.loc, t)).expressionSemantic(sc);
     }
+    if (e.ident == Id.typeFromId)
+    {
+        if (dim != 1)
+            return dimError(1);
+
+        auto ex = isExpression((*e.args)[0]);
+        if (!ex)
+        {
+            error(e.loc, "expression expected as second argument of __traits `%s`", e.ident.toErrMsg());
+            return ErrorExp.get();
+        }
+        ex = ex.ctfeInterpret();
+
+        Type t;
+        if (auto tie = ex.isTypeidExp())
+            t = isType(tie.obj);
+        else if (auto soe = ex.isSymOffExp())
+        {
+            if (auto tid = soe.var.isTypeInfoDeclaration())
+                t = tid.tinfo;
+        }
+
+        if (!t)
+        {
+            error(e.loc, "cannot determine `%s`", e.toErrMsg());
+            return ErrorExp.get();
+        }
+        return (new TypeExp(e.loc, t)).expressionSemantic(sc);
+    }
     if (e.ident == Id.hasMember ||
         e.ident == Id.getMember ||
         e.ident == Id.getOverloads ||
