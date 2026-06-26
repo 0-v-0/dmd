@@ -61,7 +61,8 @@ import dmd.dmodule;
 import dmd.dstruct;
 import dmd.dsymbol;
 import dmd.dsymbolsem : getLocalClasses, getType, findGetMembers;
-import dmd.expressionsem : toInteger;
+import dmd.attrib : foreachUdaNoSemantic;
+import dmd.expressionsem : getDsymbol, toInteger;
 import dmd.dtemplate;
 import dmd.errors;
 import dmd.expression;
@@ -78,6 +79,26 @@ import dmd.target;
 import dmd.typesem;
 import dmd.funcsem : genCfunc;
 import dmd.utils;
+
+private bool hasHiddenUda(Dsymbol s)
+{
+    foreachUdaNoSemantic(s, (Expression uda) {
+        Dsymbol sym;
+        if (auto de = uda.isDsymbolExp())
+            sym = de.s;
+        else
+            sym = getDsymbol(uda);
+        if (!sym || sym.ident != Id.hidden)
+            return 0;
+
+        auto m = sym.getModule();
+        if (m && m.isCoreModule(Id.attribute))
+            return 1;
+        return 0;
+    });
+
+    return false;
+}
 
 /**
  * Generate code for `modules` and write objects/libraries
@@ -989,7 +1010,7 @@ void FuncDeclaration_toObjFile(FuncDeclaration fd, bool multiobj)
     // Restore symbol table
     cstate.CSpsymtab = symtabsave;
 
-    if (fd.isExport() || driverParams.exportVisibility == ExpVis.public_)
+    if ((fd.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(fd))
         objmod.export_symbol(s, cast(uint)cgstate.Para.offset);
 
     if (fd.isCrtCtor)

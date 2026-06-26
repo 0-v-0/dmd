@@ -216,6 +216,7 @@ immutable Msgtable[] msgtable =
     { "trusted" },
     { "system" },
     { "disable" },
+    { "hidden" },
 
     // For inline assembler
     { "___out", "out" },
