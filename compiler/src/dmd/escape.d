@@ -757,6 +757,9 @@ bool checkAssignEscape(ref Scope sc, Expression e, bool gag, bool byRef)
             const vaWasScope = va && va.isScope();
             if (inferScope(va, e))
             {
+                if (deref == 0 && e1.isDotVarExp())
+                    inferScopeDotPath(e1, e);
+
                 // In case of `scope local = returnScopeParam`, do not infer return scope for `x`
                 if (!vaWasScope && v.isReturn() && !va.isReturn())
                 {
@@ -1417,6 +1420,21 @@ bool inferScope(VarDeclaration va, RootObject reason)
     return va.isScope();
 }
 
+private void inferScopeDotPath(Expression e, RootObject reason)
+{
+    for (;;)
+    {
+        auto dve = e.isDotVarExp();
+        if (!dve)
+            return;
+
+        if (auto v = dve.var.isVarDeclaration())
+            inferScope(v, reason);
+
+        e = dve.e1;
+    }
+}
+
 /*************************************
  * Variable v needs to have 'return' inferred for it.
  * Params:
@@ -1594,6 +1612,11 @@ void escapeExp(Expression e, ref scope EscapeByResults er, int deref)
         // Accessing a class field dereferences the `this` pointer
         if (t1b.isTypeClass())
             escapeExp(e.e1, er, deref + 1);
+        else if (auto v = e.var.isVarDeclaration())
+        {
+            if (deref < 0 || e.type.hasPointers())
+                er.varDeref(v, deref);
+        }
         else if (deref < 0 || e.type.hasPointers())
             escapeExp(e.e1, er, deref);
     }
