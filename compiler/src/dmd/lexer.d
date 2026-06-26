@@ -160,9 +160,10 @@ class Lexer
             this.compileEnv.dCharLookupTable = IdentifierCharLookup.forTable(IdentifierTable.LR);
         }
         //initKeywords();
-        /* If first line starts with '#!', ignore the line
+        /* If the file starts with one or more shebang lines, ignore them.
+         * Some tools, such as nix, stack multiple shebang lines at the top.
          */
-        if (p && p[0] == '#' && p[1] == '!')
+        while (p && p[0] == '#' && p[1] == '!')
         {
             p += 2;
             for (;;p++)
