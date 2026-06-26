@@ -1867,6 +1867,25 @@ MATCH implicitConvTo(Type from, Type to)
             return from.next.ty == Tvoid ? MATCH.constant : MATCH.convert;
         }
 
+        // Conversion to nested void pointers such as `int**` -> `void**`.
+        if (tp.next.ty == Tpointer)
+        {
+            Type src = from.next;
+            Type dst = tp.next;
+            while (src.ty == Tpointer && dst.ty == Tpointer)
+            {
+                src = src.nextOf();
+                dst = dst.nextOf();
+            }
+
+            if (dst.ty == Tvoid && src.ty != Tpointer)
+            {
+                if (!MODimplicitConv(from.next.mod, tp.next.mod))
+                    return MATCH.nomatch; // not const-compatible
+                return MATCH.convert;
+            }
+        }
+
         // Conversion between function pointers
         if (auto thisTf = from.next.isTypeFunction())
             return implicitPointerConv(thisTf, tp.next);
