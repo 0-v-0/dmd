@@ -1892,6 +1892,18 @@ MATCH implicitConvTo(Type from, Type to)
             return MATCH.nomatch;
 
         MATCH m = implicitPointerConv(from.next.isTypeFunction(), toDg.next);
+        if (m == MATCH.nomatch)
+        {
+            auto fromTf = from.next.isTypeFunction();
+            if (fromTf && toDg.next && toDg.next.mod == 0 &&
+                (fromTf.isConst() || fromTf.isImmutable()))
+            {
+                auto tmp = cast(TypeFunction)fromTf.copy();
+                tmp.mod = 0;
+                if (tmp.covariant(toDg.next) == Covariant.yes)
+                    return MATCH.convert;
+            }
+        }
 
         // Retain the old behaviour for this refactoring
         // Should probably be changed to constant to match function pointers
