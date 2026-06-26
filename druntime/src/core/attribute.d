@@ -336,6 +336,14 @@ version (UdaGNUAbiTag) struct gnuAbiTag
 enum mustuse;
 
 /**
+ * Use this attribute to suppress export of a symbol when negative annotation is
+ * used.
+ *
+ * This is recognized by the compiler when attached to `export` declarations.
+ */
+enum hidden;
+
+/**
  * Use this attribute to indicate that a shared module constructor does not depend on any
  * other module constructor being run first. This avoids errors on cyclic module constructors.
  *

@@ -44,6 +44,7 @@ import dmd.dstruct;
 import dmd.dsymbol;
 import dmd.dsymbolsem : hasPointers, hasStaticCtorOrDtor, include, isFuncHidden,
                         isAbstract, toAlias, fillVtbl;
+import dmd.attrib : foreachUdaNoSemantic;
 import dmd.dtemplate;
 import dmd.errors;
 import dmd.errorsink;
@@ -83,6 +84,26 @@ import dmd.backend.obj;
 import dmd.backend.oper;
 import dmd.backend.ty;
 import dmd.backend.type;
+
+private bool hasHiddenUda(Dsymbol s)
+{
+    foreachUdaNoSemantic(s, (Expression uda) {
+        Dsymbol sym;
+        if (auto de = uda.isDsymbolExp())
+            sym = de.s;
+        else
+            sym = getDsymbol(uda);
+        if (!sym || sym.ident != Id.hidden)
+            return 0;
+
+        auto m = sym.getModule();
+        if (m && m.isCoreModule(Id.attribute))
+            return 1;
+        return 0;
+    });
+
+    return false;
+}
 
 package(dmd.glue):
 
@@ -271,7 +292,7 @@ void toObjFile(Dsymbol ds, bool multiobj)
                 sinit.Sdt = dtb.finish();
                 out_readonly(sinit);
                 outdata(sinit);
-                if (cd.isExport() || driverParams.exportVisibility == ExpVis.public_)
+                if ((cd.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(cd))
                     objmod.export_symbol(sinit, 0);
             }
 
@@ -320,7 +341,7 @@ void toObjFile(Dsymbol ds, bool multiobj)
             csym.Sfl = FL.data;
             out_readonly(csym);
             outdata(csym);
-            if (cd.isExport() || driverParams.exportVisibility == ExpVis.public_)
+            if ((cd.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(cd))
                 objmod.export_symbol(csym, 0);
         }
 
@@ -426,7 +447,7 @@ void toObjFile(Dsymbol ds, bool multiobj)
                     else
                         out_readonly(sinit);    // put in read-only segment
                     outdata(sinit);
-                    if (sd.isExport() || driverParams.exportVisibility == ExpVis.public_)
+                    if ((sd.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(sd))
                         objmod.export_symbol(sinit, 0);
                 }
 
@@ -664,7 +685,7 @@ void toObjFile(Dsymbol ds, bool multiobj)
             outdata(s);
             if (vd.type.isMutable() || !vd._init)
                 write_pointers(vd.type, s, 0);
-            if (vd.isExport() || driverParams.exportVisibility == ExpVis.public_)
+            if ((vd.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(vd))
                 objmod.export_symbol(s, 0);
 
             vd.semanticRun = PASS.obj;
@@ -749,7 +770,7 @@ void toObjFile(Dsymbol ds, bool multiobj)
             }
 
             outdata(s);
-            if (tid.isExport() || driverParams.exportVisibility == ExpVis.public_)
+            if ((tid.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(tid))
                 objmod.export_symbol(s, 0);
         }
 
@@ -1238,7 +1259,7 @@ private void genClassInfoForClass(ClassDeclaration cd, Symbol* sinit)
     csym.Sdt = dtb.finish();
     // ClassInfo cannot be const data, because we use the monitor on it
     outdata(csym);
-    if (cd.isExport() || driverParams.exportVisibility == ExpVis.public_)
+    if ((cd.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(cd))
         objmod.export_symbol(csym, 0);
 }
 
@@ -1495,7 +1516,7 @@ private void genClassInfoForInterface(InterfaceDeclaration id)
     csym.Sdt = dtb.finish();
     out_readonly(csym);
     outdata(csym);
-    if (id.isExport() || driverParams.exportVisibility == ExpVis.public_)
+    if ((id.isExport() || driverParams.exportVisibility == ExpVis.public_) && !hasHiddenUda(id))
         objmod.export_symbol(csym, 0);
 }
 
