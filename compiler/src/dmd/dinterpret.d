@@ -2022,6 +2022,24 @@ public:
         if (exceptionOrCant(er))
             return;
 
+        if (auto dve = er.isDotVarExp())
+        {
+            if (auto v = dve.var.isVarDeclaration())
+            {
+                if (auto base = dve.e1.isVarExp())
+                {
+                    if (auto bv = base.var.isVarDeclaration())
+                    if (bv.isDataseg())
+                    {
+                        emplaceExp!(SymOffExp)(pue, e.loc, bv, cast(dinteger_t)v.offset + cast(dinteger_t)bv.offset);
+                        result = pue.exp();
+                        result.type = e.type;
+                        return;
+                    }
+                }
+            }
+        }
+
         // Return a simplified address expression
         emplaceExp!(AddrExp)(pue, e.loc, er, e.type);
         result = pue.exp();
@@ -2244,7 +2262,13 @@ public:
                         return;
                     }
 
-                    if (!v.isCTFE() && v.isDataseg())
+                    if (v.isDataseg())
+                    {
+                        result = e;
+                        return;
+                    }
+
+                    if (!v.isCTFE())
                         error(e.loc, "static variable `%s` cannot be read at compile time", v.toErrMsg());
                     else // CTFE initiated from inside a function
                         error(e.loc, "variable `%s` cannot be read at compile time", v.toErrMsg());
@@ -6058,7 +6082,8 @@ public:
         {
             printf("%s DotVarExp::interpret() %s, goal = %d\n", e.loc.toChars(), e.toChars(), goal);
         }
-        Expression ex = interpretRegion(e.e1, istate);
+        Expression ex = interpretRegion(e.e1, istate,
+            goal == CTFEGoal.LValue ? CTFEGoal.LValue : CTFEGoal.RValue);
         if (exceptionOrCant(ex))
             return;
 
@@ -6090,6 +6115,21 @@ public:
             else
                 error(e.loc, "CTFE internal error: null this `%s`", e.e1.toErrMsg());
             result = CTFEExp.cantexp;
+            return;
+        }
+
+        if (goal == CTFEGoal.LValue)
+        {
+            // Preserve the member access as a reference when the base can be
+            // interpreted as an lvalue, instead of forcing a value lookup.
+            if (ex == e.e1)
+                result = e;
+            else
+            {
+                emplaceExp!(DotVarExp)(pue, e.loc, ex, v);
+                result = pue.exp();
+                result.type = e.type;
+            }
             return;
         }
 
@@ -6142,20 +6182,6 @@ public:
         // Zero-elements fields don't have an initializer. See: scrubArray function
         if ((*se.elements)[i] is null)
             (*se.elements)[i] = voidInitLiteral(e.type, v).copy();
-
-        if (goal == CTFEGoal.LValue)
-        {
-            // just return the (simplified) dotvar expression as a CTFE reference
-            if (e.e1 == ex)
-                result = e;
-            else
-            {
-                emplaceExp!(DotVarExp)(pue, e.loc, ex, v);
-                result = pue.exp();
-                result.type = e.type;
-            }
-            return;
-        }
 
         result = (*se.elements)[i];
         if (!result)
