@@ -4340,6 +4340,23 @@ extern (D) bool checkNestedReference(VarDeclaration vd, Scope* sc, Loc loc)
     return false;
 }
 
+private bool[FuncDeclaration] contextModWriteFlags;
+
+extern (D) void markContextModWrite(FuncDeclaration fd)
+{
+    contextModWriteFlags[fd] = true;
+}
+
+extern (D) bool hasContextModWrite(FuncDeclaration fd)
+{
+    return (fd in contextModWriteFlags) !is null;
+}
+
+extern (D) void clearContextModWrite(FuncDeclaration fd)
+{
+    contextModWriteFlags.remove(fd);
+}
+
 /**********************
  * Check to see if array bounds checking code has to be generated
  *
