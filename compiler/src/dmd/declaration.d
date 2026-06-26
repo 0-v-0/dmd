@@ -65,6 +65,7 @@ extern (C++) abstract class Declaration : Dsymbol
     Type type;
     Type originalType;  // before semantic analysis
     STC storage_class = STC.none;
+    Expression disablemsg;
     // overridden symbol with pragma(mangle, "...")
     const(char)[] mangleOverride;
     Visibility visibility;

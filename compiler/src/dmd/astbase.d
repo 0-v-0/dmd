@@ -324,6 +324,7 @@ struct ASTBase
     extern (C++) abstract class Declaration : Dsymbol
     {
         StorageClass storage_class;
+        Expression disablemsg;
         Visibility visibility;
         LINK linkage;
         Type type;
