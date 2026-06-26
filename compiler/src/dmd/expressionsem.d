@@ -11968,6 +11968,13 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         Type t1 = exp.e1.type.toBasetype();
         if (t1.ty == Tclass || t1.ty == Tstruct || exp.e1.op == EXP.arrayLength)
         {
+            exp.e1 = exp.e1.modifiableLvalue(sc);
+            if (exp.e1.op == EXP.error)
+            {
+                result = exp.e1;
+                return;
+            }
+
             /* Check for operator overloading,
              * but rewrite in terms of ++e instead of e++
              */

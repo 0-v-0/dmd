@@ -256,6 +256,13 @@ Expression opOverloadUnary(UnaExp e, Scope* sc)
     }
     e.e1 = e.e1.expressionSemantic(sc);
     e.e1 = resolveProperties(sc, e.e1);
+    if (e.isPreExp())
+    {
+        auto lvalue = e.e1.modifiableLvalue(sc, e.e1);
+        if (lvalue.op == EXP.error)
+            return lvalue;
+        e.e1 = lvalue;
+    }
     Type att = null; // first cyclic `alias this` type
     while (1)
     {
