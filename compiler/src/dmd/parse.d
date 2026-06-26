@@ -323,6 +323,44 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
         return true;
     }
 
+    /**
+     * Parse `@disable("message")`.
+     */
+    private bool parseDisabledAttribute(ref AST.Expression msg)
+    {
+        if (peekNext() != TOK.leftParenthesis)
+            return false;
+
+        nextToken();
+        check(TOK.leftParenthesis);
+        AST.Expression e = parseAssignExp();
+        check(TOK.rightParenthesis);
+        if (msg)
+        {
+            error(token.loc, "conflicting storage class `@disable(%s)` and `@disable(%s)`", msg.toChars(), e.toChars());
+        }
+        msg = e;
+        return true;
+    }
+
+    private void applyDisabledMessage(AST.Dsymbols* decls, AST.Expression msg)
+    {
+        if (!msg || !decls)
+            return;
+
+        foreach (s; *decls)
+        {
+            if (auto ad = s.isAttribDeclaration())
+            {
+                applyDisabledMessage(ad.decl, msg);
+            }
+            else if (auto d = s.isDeclaration())
+            {
+                d.disablemsg = msg;
+            }
+        }
+    }
+
     /************************************
      * Parse declarations and definitions
      * Params:
@@ -716,14 +754,14 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                 stc = STC.gshared;
                 goto Lstc;
 
-            case TOK.at:
-                {
-                    AST.Expressions* exps = null;
-                    stc = parseAttribute(exps);
-                    if (stc)
-                        goto Lstc; // it's a predefined attribute
-                    // no redundant/conflicting check for UDAs
-                    pAttrs.udas = AST.UserAttributeDeclaration.concat(pAttrs.udas, exps);
+                case TOK.at:
+                    {
+                        AST.Expressions* exps = null;
+                        stc = parseAttribute(exps, pAttrs.disablemsg);
+                        if (stc)
+                            goto Lstc; // it's a predefined attribute
+                        // no redundant/conflicting check for UDAs
+                        pAttrs.udas = AST.UserAttributeDeclaration.concat(pAttrs.udas, exps);
                     goto Lautodecl;
                 }
             Lstc:
@@ -742,6 +780,8 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                     a = parseAutoDeclarations(getStorageClass!AST(pAttrs), pAttrs.comment);
                     if (a && a.length)
                         *pLastDecl = (*a)[a.length - 1];
+                    applyDisabledMessage(a, pAttrs.disablemsg);
+                    pAttrs.disablemsg = null;
                     if (pAttrs.udas)
                     {
                         s = new AST.UserAttributeDeclaration(pAttrs.udas, a);
@@ -764,6 +804,8 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                     a = parseDeclarations(true, pAttrs, pAttrs.comment);
                     if (a && a.length)
                         *pLastDecl = (*a)[a.length - 1];
+                    applyDisabledMessage(a, pAttrs.disablemsg);
+                    pAttrs.disablemsg = null;
                     if (pAttrs.udas)
                     {
                         s = new AST.UserAttributeDeclaration(pAttrs.udas, a);
@@ -773,6 +815,8 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
                 }
 
                 a = parseBlock(pLastDecl, pAttrs);
+                applyDisabledMessage(a, pAttrs.disablemsg);
+                pAttrs.disablemsg = null;
                 auto stc2 = getStorageClass!AST(pAttrs);
                 if (stc2 != STC.none)
                 {
@@ -1366,10 +1410,23 @@ class Parser(AST, Lexer = dmd.lexer.Lexer) : Lexer
      */
     private STC parseAttribute(ref AST.Expressions* udas)
     {
+        AST.Expression disablemsg = null;
+        return parseAttribute(udas, disablemsg);
+    }
+
+    private STC parseAttribute(ref AST.Expressions* udas, ref AST.Expression disablemsg)
+    {
         nextToken();
         if (token.value == TOK.identifier)
         {
             // If we find a builtin attribute, we're done, return immediately.
+            if (token.ident == Id.disable)
+            {
+                if (parseDisabledAttribute(disablemsg))
+                    return STC.disable;
+                return STC.disable;
+            }
+
             if (STC stc = isBuiltinAtAttribute(token.ident))
                 return stc;
 
@@ -9952,6 +10009,7 @@ struct PrefixAttributes(AST)
 {
     STC storageClass;
     AST.Expression depmsg;
+    AST.Expression disablemsg;
     LINK link;
     AST.Visibility visibility;
     bool setAlignment;
