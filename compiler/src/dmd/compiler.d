@@ -64,6 +64,7 @@ extern (C++) struct Compiler
         U u = void;
 
         assert(e.type.size() == type.size());
+        const sourceReal = e.type.isImaginary() ? e.toImaginary() : e.toReal();
 
         switch (e.type.ty)
         {
@@ -76,10 +77,12 @@ extern (C++) struct Compiler
             u.int64value = cast(long) e.toInteger();
             break;
         case Tfloat32:
-            u.float32value = cast(float) e.toReal();
+        case Timaginary32:
+            u.float32value = cast(float) sourceReal;
             break;
         case Tfloat64:
-            u.float64value = cast(double) e.toReal();
+        case Timaginary64:
+            u.float64value = cast(double) sourceReal;
             break;
         case Timaginary32:
             u.float32value = cast(float) e.toImaginary();
@@ -89,8 +92,10 @@ extern (C++) struct Compiler
             u.float64value = cast(double) e.toImaginary();
             break;
         case Tfloat80:
+        case Timaginary80:
             assert(e.type.size() == 8); // 64-bit target `real`
-            goto case Tfloat64;
+            u.float64value = cast(double) sourceReal;
+            break;
         default:
             assert(0, "Unsupported source type");
         }
