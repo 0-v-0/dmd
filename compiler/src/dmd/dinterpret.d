@@ -488,8 +488,8 @@ private Expression interpretFunction(UnionExp* pue, FuncDeclaration fd, InterSta
     // Nested functions always inherit the 'this' pointer from the parent,
     // except for delegates. (Note that the 'this' pointer may be null).
     // Func literals report isNested() even if they are in global scope,
-    // so we need to check that the parent is a function.
-    if (fd.isNested() && fd.toParentLocal().isFuncDeclaration() && !thisarg && istate)
+    // so we need to check that the lexical parent is a function.
+    if (fd.isNested() && fd.toParent2().isFuncDeclaration() && !thisarg && istate)
         thisarg = ctfeGlobals.stack.getThis();
 
     if (fd.needThis() && !thisarg)
