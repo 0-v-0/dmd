@@ -52,6 +52,7 @@ import dmd.common.outbuffer;
 import dmd.rootobject;
 import dmd.semantic2;
 import dmd.semantic3;
+import dmd.statement;
 import dmd.templateparamsem;
 import dmd.timetrace;
 import dmd.tokens;
@@ -1272,6 +1273,132 @@ void templateInstanceSemantic(TemplateInstance tempinst, Scope* sc, ArgumentList
             // It had succeeded, mark it is a non-gagged instantiation,
             // and reuse it.
             tempinst.inst.gagged = tempinst.gagged;
+
+            // A speculative instantiation may have skipped reporting errors in
+            // member bodies. If this instance is now needed in a real context,
+            // rerun semantic3 so those errors are not lost.
+            void restoreBodies(Dsymbol src, Dsymbol dst)
+            {
+                if (auto sfd = src.isFuncDeclaration())
+                {
+                    if (auto dfd = dst.isFuncDeclaration())
+                    {
+                        if (!dfd.isCtorDeclaration())
+                        {
+                            if (sfd.fbody)
+                                dfd.fbody = sfd.fbody.syntaxCopy();
+                            if (sfd.frequires)
+                                dfd.frequires = Statement.arraySyntaxCopy(sfd.frequires);
+                            if (sfd.fensures)
+                                dfd.fensures = Ensure.arraySyntaxCopy(sfd.fensures);
+                            if (sfd.fensure)
+                                dfd.fensure = sfd.fensure.syntaxCopy();
+                        }
+                    }
+                }
+
+                if (auto ssd = src.isStructDeclaration())
+                {
+                    if (auto dsd = dst.isStructDeclaration())
+                    {
+                        if (ssd.xeq && dsd.xeq)
+                            restoreBodies(ssd.xeq, dsd.xeq);
+                        if (ssd.xcmp && dsd.xcmp)
+                            restoreBodies(ssd.xcmp, dsd.xcmp);
+                        if (ssd.xhash && dsd.xhash)
+                            restoreBodies(ssd.xhash, dsd.xhash);
+                    }
+                }
+
+                if (auto sds = src.isScopeDsymbol())
+                {
+                    auto dds = dst.isScopeDsymbol();
+                    if (!dds || !sds.members || !dds.members)
+                        return;
+                    assert(sds.members.length == dds.members.length);
+                    foreach (i, s; *sds.members)
+                        restoreBodies(s, (*dds.members)[i]);
+                    return;
+                }
+
+                if (auto sad = src.isAttribDeclaration())
+                {
+                    auto sm = sad.include(null);
+                    auto dm = dst.isAttribDeclaration() ? dst.isAttribDeclaration().include(null) : null;
+                    if (sm && dm)
+                    {
+                        assert(sm.length == dm.length);
+                        foreach (i, s; *sm)
+                            restoreBodies(s, (*dm)[i]);
+                    }
+                    return;
+                }
+            }
+
+            if (tempdecl.members && tempinst.inst.members)
+            {
+                assert(tempdecl.members.length == tempinst.inst.members.length);
+                foreach (i, s; *tempdecl.members)
+                    restoreBodies(s, (*tempinst.inst.members)[i]);
+            }
+
+            extern (C++) final class ResetSemantic3Walker : Visitor
+            {
+                alias visit = Visitor.visit;
+
+                void reset(Dsymbol d)
+                {
+                    d.accept(this);
+                }
+
+                override void visit(Dsymbol d) {}
+
+                override void visit(FuncDeclaration fd)
+                {
+                    if (!fd.isCtorDeclaration())
+                    {
+                        fd.semanticRun = PASS.semantic2done;
+                        fd.errors = false;
+                    }
+                }
+
+                override void visit(ScopeDsymbol sds)
+                {
+                    sds.members.foreachDsymbol(s => reset(s));
+                }
+
+                override void visit(StructDeclaration sd)
+                {
+                    if (sd.xeq)
+                        reset(sd.xeq);
+                    if (sd.xcmp)
+                        reset(sd.xcmp);
+                    if (sd.xhash)
+                        reset(sd.xhash);
+                    visit(cast(ScopeDsymbol)sd);
+                }
+
+                override void visit(AttribDeclaration ad)
+                {
+                    Dsymbols* d = ad.include(null);
+                    if (d)
+                        d.foreachDsymbol(s => reset(s));
+                }
+
+                override void visit(ConditionalDeclaration cd)
+                {
+                    if (cd.condition.inc)
+                        visit(cast(AttribDeclaration)cd);
+                    else
+                        visit(cast(Dsymbol)cd);
+                }
+            }
+
+            scope reset = new ResetSemantic3Walker();
+            reset.reset(tempinst.inst);
+            tempinst.inst.semanticRun = PASS.semantic2done;
+            tempinst.inst.errors = false;
+            tempinst.inst.semantic3(sc);
         }
 
         tempinst.tnext = tempinst.inst.tnext;
