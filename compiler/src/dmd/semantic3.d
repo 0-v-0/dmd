@@ -153,7 +153,11 @@ private extern(C++) final class Semantic3Visitor : Visitor
                 break;
         }
 
-        if (global.errors != olderrors)
+        bool anyErrors = global.errors != olderrors;
+        if (needGagging)
+            anyErrors = global.endGagging(oldGaggedErrors) || anyErrors;
+
+        if (anyErrors)
         {
             if (!tempinst.errors)
             {
@@ -164,8 +168,6 @@ private extern(C++) final class Semantic3Visitor : Visitor
             }
             tempinst.errors = true;
         }
-        if (needGagging)
-            global.endGagging(oldGaggedErrors);
 
         sc = sc.pop();
         sc.pop();
