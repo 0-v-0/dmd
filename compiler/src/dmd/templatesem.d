@@ -953,6 +953,9 @@ void templateInstanceSemantic(TemplateInstance tempinst, Scope* sc, ArgumentList
     if (!tempinst.findTempDecl(sc, null))
         return Lerror();
 
+    if (!tempinst.enclosing && sc.func && sc.func.parent && sc.func.parent.isFuncDeclaration())
+        tempinst.enclosing = sc.func;
+
     // Trace template argument semantic analysis as a sub-span of the template instance
     {
         bool tiargs_ok;
@@ -1602,8 +1605,28 @@ private bool hasNestedArgs(TemplateInstance _this, Objects* args, bool isstatic)
     // arguments from parent instances are also accessible
     if (!_this.enclosing)
     {
-        if (TemplateInstance ti = _this.tempdecl.toParent().isTemplateInstance())
-            _this.enclosing = ti.enclosing;
+        for (Dsymbol cur = _this.tempdecl.toParent(); cur; cur = cur.toParent())
+        {
+            TemplateInstance ti = cur.isTemplateInstance();
+            if (!ti)
+            {
+                if (auto td = cur.isTemplateDeclaration())
+                    ti = td.isInstantiated();
+            }
+            for (; ti; ti = ti.tempdecl.isInstantiated())
+            {
+                if (ti.enclosing)
+                {
+                    _this.enclosing = ti.enclosing;
+                    break;
+                }
+            }
+            if (_this.enclosing)
+                break;
+        }
+
+        if (!_this.enclosing && _this.tinst && _this.tinst.enclosing)
+            _this.enclosing = _this.tinst.enclosing;
     }
 
     /* Search for the most deeply nested of `dparent` and `enclosing` assigning
@@ -1879,9 +1902,16 @@ private void expandMembers(TemplateInstance ti,Scope* sc2)
         //if (enclosing)
         //    s.parent = sc.parent;
         //printf("test3: enclosing = %d, s.parent = %s\n", enclosing, s.parent.toChars());
+        const stcSave = sc2.stc;
+        if (ti.enclosing && s.isFuncDeclaration())
+        {
+            sc2.stc &= ~STC.static_;
+            s.isFuncDeclaration().storage_class &= ~STC.static_;
+        }
         s.dsymbolSemantic(sc2);
         //printf("test4: enclosing = %d, s.parent = %s\n", enclosing, s.parent.toChars());
         runDeferredSemantic();
+        sc2.stc = stcSave;
     }
 
     ti.members.foreachDsymbol(&symbolDg);
@@ -5143,6 +5173,13 @@ Lmatch:
         }
     }
     ti.tiargs = dedargs; // update to the normalized template arguments.
+    if (!ti.enclosing)
+    {
+        if (sc.tinst && sc.tinst.enclosing)
+            ti.enclosing = sc.tinst.enclosing;
+        else if (sc.func && sc.func.parent && sc.func.parent.isFuncDeclaration())
+            ti.enclosing = sc.func;
+    }
 
     // Partially instantiate function for constraint and fd.leastAsSpecialized()
     {
@@ -6197,6 +6234,13 @@ void functionResolve(ref MatchAccumulator m, Dsymbol dstart, Loc loc, Scope* sc,
             sc = td_best._scope; // workaround for Type.aliasthisOf
 
         auto ti = new TemplateInstance(loc, td_best, ti_best.tiargs);
+        if (!ti.enclosing)
+        {
+            if (sc.tinst && sc.tinst.enclosing)
+                ti.enclosing = sc.tinst.enclosing;
+            else if (sc.func && sc.func.parent && sc.func.parent.isFuncDeclaration())
+                ti.enclosing = sc.func;
+        }
         ti.templateInstanceSemantic(sc, argumentList);
 
         m.lastf = ti.toAlias().isFuncDeclaration();
