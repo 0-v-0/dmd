@@ -1908,6 +1908,17 @@ extern (D) bool checkClosure(FuncDeclaration fd)
     if (!fd.needsClosure())
         return false;
 
+    foreach (v; fd.closureVars)
+    {
+        if (v.needsScopeDtor())
+        {
+            .error(v.loc, "variable `%s` has scoped destruction, cannot build closure", v.toPrettyChars());
+            if (v.ident != Id.This)
+                .errorSupplemental(v.loc, "`%s` declared here", v.toPrettyChars());
+            return true;
+        }
+    }
+
     if (setGC(null, fd, fd.loc, "allocating a closure for `%s()`", fd))
     {
         .error(fd.loc, "%s `%s` is `@nogc` yet allocates closure for `%s()` with the GC", fd.kind, fd.toPrettyChars(), fd.toErrMsg());
