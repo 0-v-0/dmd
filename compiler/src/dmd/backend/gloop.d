@@ -1944,6 +1944,7 @@ private void newfamlist(famlist* fl, tym_t ty)
         case TYnptr:
         case TYnullptr:
         case TYimmutPtr:
+        case TYcompressedPtr:
         case TYsharePtr:
         case TYrestrictPtr:
         case TYfgPtr:
@@ -3266,6 +3267,7 @@ private bool flcmp(const ref famlist f1, const ref famlist f2)
             case TYcptr:
             case TYnptr:        // BUG: 64 bit pointers?
             case TYimmutPtr:
+            case TYcompressedPtr:
             case TYsharePtr:
             case TYrestrictPtr:
             case TYfgPtr:

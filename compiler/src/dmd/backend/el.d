@@ -1924,6 +1924,7 @@ L1:
                     case TYsptr:
                     case TYcptr:
                     case TYimmutPtr:
+                    case TYcompressedPtr:
                     case TYsharePtr:
                     case TYrestrictPtr:
                     case TYfgPtr:
@@ -2151,6 +2152,7 @@ targ_llong el_tolong(elem* e)
         case TYnullptr:
         case TYnref:
         case TYimmutPtr:
+        case TYcompressedPtr:
         case TYsharePtr:
         case TYrestrictPtr:
         case TYfgPtr:
@@ -2411,6 +2413,7 @@ void elem_print_const(const elem* e)
         case TYnptr:
         case TYnref:
         case TYimmutPtr:
+        case TYcompressedPtr:
         case TYsharePtr:
         case TYrestrictPtr:
         case TYfgPtr:

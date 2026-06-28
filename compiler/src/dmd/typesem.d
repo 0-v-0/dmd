@@ -3035,6 +3035,7 @@ uinteger_t size(Type t, Loc loc)
         case Treference:
         case Tclass:
         case Taarray:       return target.ptrsize;
+        case Tcompressedptr:return target.compressedPtrSize;
         case Tident:
         case Tinstance:
         case Ttypeof:
@@ -8448,7 +8449,9 @@ Type pointerTo(Type type)
     auto mcache = type.getMcache();
     if (!mcache.pto)
     {
-        Type t = new TypePointer(type);
+        Type t = target.useCompressedPointers
+            ? new TypeCompressedPointer(type)
+            : new TypePointer(type);
         if (type.ty == Tfunction)
         {
             t.deco = t.merge().deco;

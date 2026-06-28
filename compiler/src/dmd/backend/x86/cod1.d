@@ -4819,6 +4819,7 @@ void pushParams(ref CGstate cg, ref CodeBuilder cdb, elem* e, uint stackalign, t
                 switch (tym1)
                 {
                     case TYnptr: segreg = 3<<3; break;
+                    case TYcompressedPtr: segreg = 3<<3; break;
                     case TYcptr: segreg = 1<<3; break;
                     default:     segreg = 2<<3; break;
                 }

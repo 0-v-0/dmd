@@ -2922,6 +2922,7 @@ void codelem(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs,uin
 
                     case TYnref:
                     case TYnptr:
+                    case TYcompressedPtr:
                     case TYsptr:
                     case TYcptr:
                     case TYfgPtr:

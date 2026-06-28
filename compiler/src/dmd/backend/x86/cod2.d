@@ -3538,6 +3538,7 @@ private code* cod2_setES(tym_t ty)
     switch (tybasic(ty))
     {
         case TYnptr:
+        case TYcompressedPtr:
             if (!(config.flags3 & CFG3eseqds))
             {   push = 0x1E;            // PUSH DS
                 goto L1;
@@ -3663,6 +3664,7 @@ void cdstrcmp(ref CGstate cg, ref CodeBuilder cdb, elem* e, ref regm_t pretregs)
     switch (tybasic(ty1))
     {
         case TYnptr:
+        case TYcompressedPtr:
         case TYimmutPtr:
             need_DS = false;
             break;
@@ -3778,6 +3780,7 @@ void cdmemcmp(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     switch (tybasic(ty1))
     {
         case TYnptr:
+        case TYcompressedPtr:
         case TYimmutPtr:
             need_DS = false;
             break;
@@ -3893,6 +3896,7 @@ void cdstrcpy(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     switch (ty2)
     {
         case TYnptr:
+        case TYcompressedPtr:
         case TYimmutPtr:
             need_DS = false;
             break;
@@ -4012,6 +4016,7 @@ void cdmemcpy(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     switch (tybasic(ty2))
     {
         case TYnptr:
+        case TYcompressedPtr:
         case TYimmutPtr:
             need_DS = false;
             break;

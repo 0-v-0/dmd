@@ -81,6 +81,7 @@ int boolres(elem* e)
                 case TYfptr:
                 case TYvptr:
                 case TYnptr:
+                case TYcompressedPtr:
                 case TYimmutPtr:
                 case TYsharePtr:
                 case TYrestrictPtr:

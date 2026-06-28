@@ -2557,6 +2557,7 @@ static if (1)
                 break;
 
             case TYnptr:
+            case TYcompressedPtr:
                 if (!t.Tkey)
                     goto Lnptr;
 

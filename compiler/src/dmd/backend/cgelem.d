@@ -171,6 +171,7 @@ int elemisone(elem* e)
             case TYfptr:
             case TYvptr:
             case TYnptr:
+            case TYcompressedPtr:
             case TYimmutPtr:
             case TYsharePtr:
             case TYrestrictPtr:
@@ -231,6 +232,7 @@ int elemisnegone(elem* e)
             case TYullong:
             case TYnullptr:
             case TYnptr:
+            case TYcompressedPtr:
             case TYsptr:
             case TYcptr:
             case TYhptr:
@@ -1248,6 +1250,7 @@ private elem* elmin(elem* e, Goal goal)
             cnst(e1.E2) &&
             (tyintegral(tym) ||
              tybasic(tym) == TYnptr ||
+             tybasic(tym) == TYcompressedPtr ||
              tybasic(tym) == TYsptr ||
              tybasic(tym) == TYfgPtr ||
              tybasic(tym) == TYimmutPtr ||
@@ -1269,6 +1272,7 @@ private elem* elmin(elem* e, Goal goal)
             cnst(e1.E2) && cnst(e2.E2) &&
             (tyintegral(tym) ||
              tybasic(tym) == TYnptr ||
+             tybasic(tym) == TYcompressedPtr ||
              tybasic(tym) == TYsptr ||
              tybasic(tym) == TYfgPtr ||
              tybasic(tym) == TYimmutPtr ||

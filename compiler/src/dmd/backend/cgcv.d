@@ -659,6 +659,7 @@ L1:
             break;
 
         case TYnptr:
+        case TYcompressedPtr:
         case TYimmutPtr:
         case TYsharePtr:
         case TYrestrictPtr:
@@ -1010,6 +1011,7 @@ __gshared ubyte[TYMAX] dttab =
     TYsharePtr : 0x20,
     TYrestrictPtr : 0x20,
     TYfgPtr    : 0x20,
+    TYcompressedPtr : 0x20,
     TYffunc    : 0x64,
     TYfpfunc   : 0x73,
     TYfsfunc   : 0x64,
@@ -1117,6 +1119,7 @@ __gshared ushort[TYMAX] dttab4 =
     TYsharePtr : 0x100,
     TYrestrictPtr : 0x100,
     TYfgPtr    : 0x100,
+    TYcompressedPtr : 0x100,
     TYffunc    : 0x00,
     TYfpfunc   : 0x00,
     TYfsfunc   : 0x00,

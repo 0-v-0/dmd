@@ -735,6 +735,7 @@ regm_t regmask(tym_t tym, tym_t tyf)
         case TYsptr:
         case TYcptr:
         case TYimmutPtr:
+        case TYcompressedPtr:
         case TYsharePtr:
         case TYrestrictPtr:
         case TYfgPtr:
