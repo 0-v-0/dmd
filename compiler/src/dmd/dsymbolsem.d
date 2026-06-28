@@ -2459,10 +2459,19 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
             if (dsym.type.ty == Ttypeof)
                 // `ref typeof(expr) x` makes `x` a ref variable, not `expr` a ref-returning context.
                 sc2.stc &= ~STC.ref_;
-            dsym.inuse++;
+            /* If template instantiations occur during type.semantic(),
+             * dsym.semantic(dsym._scope) might be invoked to get correct dsym.type.
+             * To make it possible, keep _scope until type analysis finishes.
+             */
+            dsym._scope = !dsym.inuse ? scx : null;
+            dsym.inuse = 1;
             dsym.type = dsym.type.typeSemantic(dsym.loc, sc2);
-            dsym.inuse--;
+            dsym.inuse = 0;
+            dsym._scope = null;
             sc2.pop();
+
+            if (dsym.semanticRun >= PASS.semanticdone)
+                return;
         }
         static bool inferExprLength(Expression e, out dinteger_t len)
         {
