@@ -8622,7 +8622,16 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             }
 
             checkFunctionAttributes(exp, sc, exp.f);
-            checkAccess(exp.loc, sc, null, exp.f);
+
+            // Plain function calls do not carry an access base expression,
+            // so check the resolved symbol directly.
+            const parent = exp.f.toParent();
+            if (!(parent && parent.isTemplateInstance()) && !checkSymbolAccess(sc, exp.f))
+            {
+                error(exp.loc, "%s `%s` of type `%s` is not accessible from module `%s`",
+                    exp.f.kind(), exp.f.toPrettyChars(), exp.f.type.toErrMsg(), sc._module.toChars);
+                return setError();
+            }
             if (exp.f.checkNestedFuncReference(sc, exp.loc))
                 return setError();
 
