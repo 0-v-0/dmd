@@ -11,7 +11,7 @@ module core.internal.gc.os;
 version (Windows)
 {
     import core.sys.windows.winbase : GetCurrentThreadId, VirtualAlloc, VirtualFree;
-    import core.sys.windows.winnt : MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE;
+    import core.sys.windows.winnt : MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE, PAGE_NOACCESS;
 
     alias pthread_t = int;
 
@@ -41,7 +41,7 @@ else version (Posix)
 
     static import core.sys.posix.sys.mman;
     static if (__traits(compiles, core.sys.posix.sys.mman.mmap))
-        import core.sys.posix.sys.mman : MAP_ANON, MAP_FAILED, MAP_PRIVATE, MAP_SHARED, mmap, munmap, PROT_READ, PROT_WRITE;
+        import core.sys.posix.sys.mman : MAP_ANON, MAP_FAILED, MAP_FIXED, MAP_PRIVATE, MAP_SHARED, mmap, munmap, PROT_READ, PROT_WRITE, PROT_NONE;
 
     static import core.sys.posix.stdlib;
     static if (__traits(compiles, core.sys.posix.stdlib.valloc))
@@ -130,6 +130,21 @@ version (CoreDdoc)
     }
 
     /**
+     * Reserve address space without committing physical memory.
+     * Returns:
+     *      base address of reserved region, or null on failure
+     */
+    void *os_mem_reserve(size_t nbytes) nothrow @nogc
+    {
+        return null;
+    }
+
+    void *os_mem_map_at(void* addr, size_t nbytes) nothrow @nogc
+    {
+        return null;
+    }
+
+    /**
      * Unmap memory allocated with os_mem_map()
      * Returns:
      *      0       success
@@ -168,6 +183,16 @@ else static if (is(typeof(VirtualAlloc))) // version (GC_Use_Alloc_Win32)
                 PAGE_READWRITE);
     }
 
+    void *os_mem_reserve(size_t nbytes) nothrow @nogc
+    {
+        return VirtualAlloc(null, nbytes, MEM_RESERVE, PAGE_NOACCESS);
+    }
+
+    void *os_mem_map_at(void* addr, size_t nbytes) nothrow @nogc
+    {
+        return VirtualAlloc(addr, nbytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    }
+
     int os_mem_unmap(void *base, size_t nbytes) nothrow @nogc
     {
         return cast(int)(VirtualFree(base, 0, MEM_RELEASE) == 0);
@@ -178,6 +203,18 @@ else static if (is(typeof(mmap)))  // else version (GC_Use_Alloc_MMap)
     void *os_mem_map(size_t nbytes) nothrow @nogc
     {
         void* p = mmap(null, nbytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+        return (p == MAP_FAILED) ? null : p;
+    }
+
+    void *os_mem_reserve(size_t nbytes) nothrow @nogc
+    {
+        void* p = mmap(null, nbytes, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+        return (p == MAP_FAILED) ? null : p;
+    }
+
+    void *os_mem_map_at(void* addr, size_t nbytes) nothrow @nogc
+    {
+        void* p = mmap(addr, nbytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0);
         return (p == MAP_FAILED) ? null : p;
     }
 
@@ -210,6 +247,16 @@ else static if (is(typeof(valloc))) // else version (GC_Use_Alloc_Valloc)
         free(base);
         return 0;
     }
+
+    void *os_mem_reserve(size_t nbytes) nothrow @nogc
+    {
+        return null;
+    }
+
+    void *os_mem_map_at(void* addr, size_t nbytes) nothrow @nogc
+    {
+        return null;
+    }
 }
 else static if (is(typeof(malloc))) // else version (GC_Use_Alloc_Malloc)
 {
@@ -239,6 +286,16 @@ else static if (is(typeof(malloc))) // else version (GC_Use_Alloc_Malloc)
     {
         free( *cast(void**)( cast(byte*) base + nbytes ) );
         return 0;
+    }
+
+    void *os_mem_reserve(size_t nbytes) nothrow @nogc
+    {
+        return null;
+    }
+
+    void *os_mem_map_at(void* addr, size_t nbytes) nothrow @nogc
+    {
+        return null;
     }
 }
 else

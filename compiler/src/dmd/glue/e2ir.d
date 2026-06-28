@@ -182,7 +182,8 @@ elem* elAssign(elem* e1, elem* e2, Type t, type* tx)
     // Encode full pointer when storing to compressed pointer lvalue
     if (target.useCompressedPointers && tybasic(e1.Ety) == TYcompressedPtr)
     {
-        e2 = el_bin(OPmin, TYcompressedPtr, e2, el_var(heapBaseSym()));
+        auto tmp = el_bin(OPmin, TYnptr, e2, el_var(heapBaseSym()));
+        e2 = el_bin(OPshr, TYcompressedPtr, tmp, el_long(TYint, 3));
     }
 
     elem* e = el_bin(OPeq, e2.Ety, e1, e2);
@@ -3671,7 +3672,10 @@ elem* toElem(Expression e, ref IRState irs)
 
         // Decode compressed pointer to full pointer before dereferencing
         if (target.useCompressedPointers && tybasic(e.Ety) == TYcompressedPtr)
-            e = el_bin(OPadd, TYnptr, e, el_var(heapBaseSym()));
+        {
+            auto tmp = el_bin(OPshl, TYnptr, e, el_long(TYint, 3));
+            e = el_bin(OPadd, TYnptr, tmp, el_var(heapBaseSym()));
+        }
 
         if (tybasic(e.Ety) == TYnptr &&
             pe.e1.type.nextOf() &&

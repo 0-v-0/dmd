@@ -86,6 +86,15 @@ __gshared long lockTime;
 
 ulong bytesAllocated;   // thread local counter
 
+/// Global heap base for compressed pointer encoding/decoding.
+/// Set during GC initialization when compressed pointers are active.
+/// Must be exported with C linkage so compiler-generated code can reference it.
+extern(C) __gshared void* __d_heap_base = null;
+
+/// Size of the heap address space to reserve for compressed pointers.
+/// 32GB allows 2^32 compressed slots at 8-byte alignment.
+enum size_t HEAP_RESERVE_SIZE = 32UL * 1024 * 1024 * 1024;
+
 private
 {
     extern (C)
@@ -194,6 +203,19 @@ class ConservativeGC : GC
             gcx.reserve(config.initReserve);
         if (config.disable)
             gcx.disabled++;
+
+        // Reserve a large virtual address space for compressed pointer support.
+        // When __d_heap_base is set later, pool allocations will come from this region.
+        if (!__d_heap_base && HEAP_RESERVE_SIZE)
+        {
+            auto heapBase = os_mem_reserve(HEAP_RESERVE_SIZE);
+            if (heapBase !is null)
+            {
+                __d_heap_base = heapBase;
+                gcx._heapReserveBase = heapBase;
+                gcx._heapReserveSize = HEAP_RESERVE_SIZE;
+            }
+        }
     }
 
 
@@ -1754,6 +1776,13 @@ struct Gcx
         bool shouldFork;
     }
 
+    // Reserved heap region for compressed pointer support.
+    // When non-null, all pool allocations are carved from this region.
+    void* _heapReserveBase;
+    size_t _heapReserveSize;
+    // Next offset within the reserved region to allocate from.
+    size_t _heapNext;
+
     debug(INVARIANT) bool initialized;
     debug(INVARIANT) bool inCollection;
     uint disabled; // turn off collections if >0
@@ -2387,7 +2416,17 @@ struct Gcx
         auto pool = cast(Pool *)cstdlib.calloc(1, isLargeObject ? LargeObjectPool.sizeof : SmallObjectPool.sizeof);
         if (pool)
         {
-            pool.initialize(npages, isLargeObject);
+            void* suggestedBase = null;
+            if (_heapReserveBase !is null)
+            {
+                size_t poolSizeBytes = npages * PAGESIZE;
+                if (_heapNext + poolSizeBytes <= _heapReserveSize)
+                {
+                    suggestedBase = _heapReserveBase + _heapNext;
+                    _heapNext += poolSizeBytes;
+                }
+            }
+            pool.initialize(npages, isLargeObject, suggestedBase);
             if (collectInProgress)
                 pool.mark.setAll();
             if (!pool.baseAddr || !pooltable.insert(pool))
@@ -2580,6 +2619,7 @@ struct Gcx
                 {
                     size_t low = 0;
                     size_t high = highpool;
+                LdecodedPtr:
                     while (true)
                     {
                         size_t mid = (low + high) >> 1;
@@ -2591,7 +2631,19 @@ struct Gcx
                         else break;
 
                         if (low > high)
+                        {
+                            // Pool not found - try compressed pointer decode.
+                            // Only attempt if raw value looks like a compressed ptr (smaller than heap base).
+                            if (__d_heap_base !is null && cast(size_t)p < cast(size_t)__d_heap_base)
+                            {
+                                auto cv = undefinedRead(*cast(uint*)(rng.pbot));
+                                p = cast(void*)((cast(size_t)cv << 3) + cast(size_t)__d_heap_base);
+                                low = 0;
+                                high = highpool;
+                                goto LdecodedPtr;
+                            }
                             goto LnextPtr;
+                        }
                     }
                 }
                 size_t offset = cast(size_t)(p - pool.baseAddr);
@@ -3840,6 +3892,7 @@ struct Pool
     GCBits nointerior;  // interior pointers should be ignored.
                         // Only implemented for large object pools.
     GCBits is_pointer;  // precise GC only: per-word, not per-block like the rest of them (SmallObjectPool only)
+    GCBits is_compressed; // precise GC only: per-word bitmap marking compressed pointer slots (SmallObjectPool only)
     size_t npages;
     size_t freepages;     // The number of pages not in use.
     Bins* pagetable;
@@ -3882,7 +3935,7 @@ struct Pool
     size_t searchStart;
     size_t largestFree; // upper limit for largest free chunk in large object pool
 
-    void initialize(size_t npages, bool isLargeObject) nothrow
+    void initialize(size_t npages, bool isLargeObject, void* suggestedBase = null) nothrow
     {
         assert(npages >= 256);
 
@@ -3893,7 +3946,10 @@ struct Pool
 
         //debug(PRINTF) printf("Pool::Pool(%u)\n", npages);
         poolsize = npages * PAGESIZE;
-        baseAddr = cast(byte *)os_mem_map(poolsize);
+        if (suggestedBase !is null)
+            baseAddr = cast(byte *)os_mem_map_at(suggestedBase, poolsize);
+        else
+            baseAddr = cast(byte *)os_mem_map(poolsize);
         version (VALGRIND) makeMemNoAccess(baseAddr[0..poolsize]);
 
         // Some of the code depends on page alignment of memory pools
@@ -3928,6 +3984,8 @@ struct Pool
             {
                 is_pointer.alloc(cast(size_t)poolsize/(void*).sizeof);
                 is_pointer.clrRange(0, is_pointer.nbits);
+                is_compressed.alloc(cast(size_t)poolsize/(void*).sizeof);
+                is_compressed.clrRange(0, is_compressed.nbits);
             }
         }
 
@@ -4313,10 +4371,16 @@ struct Pool
                 debug(PRINTF) printf("\tCompiler generated rtInfo: no pointers\n");
                 is_pointer.clrRange(offset/(void*).sizeof, s/(void*).sizeof);
             }
-            else if (rtInfo is rtinfoHasPointers)
+            else if (rtInfo is rtinfoHasPointers || rtInfo is rtinfoCompressedPtr)
             {
-                debug(PRINTF) printf("\tCompiler generated rtInfo: has pointers\n");
+                debug(PRINTF) printf("\tCompiler generated rtInfo: %s\n",
+                    rtInfo is rtinfoCompressedPtr ? "compressed pointers" : "has pointers");
                 is_pointer.setRange(offset/(void*).sizeof, s/(void*).sizeof);
+                if (rtInfo is rtinfoCompressedPtr)
+                {
+                    // Mark all pointer slots as compressed pointer slots
+                    is_compressed.setRange(offset/(void*).sizeof, s/(void*).sizeof);
+                }
             }
             else
             {
