@@ -40,6 +40,7 @@ import dmd.expression;
 import dmd.id;
 import dmd.expressionsem : toBool, toInteger;
 import dmd.func;
+import dmd.funcsem : needsClosure;
 import dmd.globals;
 import dmd.init;
 import dmd.location;
@@ -595,6 +596,13 @@ void Expression_toDt(Expression e, ref DtBuilder dtb)
             // change to non-nested
             e.fd.tok = TOK.function_;
             e.fd.vthis = null;
+        }
+        if (e.type.ty == Tdelegate && needsClosure(e.fd))
+        {
+            // Static data cannot encode a closure context, so reject it
+            // instead of emitting a delegate with a bogus null `this`.
+            nonConstExpError(e);
+            return;
         }
         Symbol* s = toSymbol(e.fd);
         toObjFile(e.fd, false);
