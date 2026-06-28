@@ -1996,6 +1996,7 @@ MATCH implicitConvTo(Type from, Type to)
         case Tarray:         return visitDArray(from.isTypeDArray());
         case Taarray:        return visitAArray(from.isTypeAArray());
         case Tpointer:       return visitPointer(from.isTypePointer());
+        case Tcompressedptr: return visitPointer(cast(TypePointer)from);
         case Tdelegate:      return visitDelegate(from.isTypeDelegate());
         case Tstruct:        return visitStruct(from.isTypeStruct());
         case Tenum:          return visitEnum(from.isTypeEnum());

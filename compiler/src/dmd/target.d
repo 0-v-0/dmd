@@ -357,6 +357,9 @@ extern (C++) struct Target
 
     // D ABI
     ubyte ptrsize;            /// size of a pointer in bytes
+    bool useCompressedPointers; /// enable compressed pointer mode
+    ubyte compressedPtrSize;  /// size of compressed pointer (usually 4)
+    void* heapBase;           /// GC heap base address for encoding/decoding
     ubyte realsize;           /// size a real consumes in memory
     ubyte realpad;            /// padding added to the CPU real size to bring it up to realsize
     ubyte realalignsize;      /// alignment for reals
@@ -459,6 +462,17 @@ extern (C++) struct Target
         if (isLP64 || isAArch64)
         {
             ptrsize = 8;
+        }
+
+        if (params.useCompressedPointers)
+        {
+            useCompressedPointers = true;
+            compressedPtrSize = 4;
+        }
+        else
+        {
+            useCompressedPointers = false;
+            compressedPtrSize = 0;
         }
 
         if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))

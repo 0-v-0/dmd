@@ -141,7 +141,9 @@ enum
 
     TYnoreturn          = 0x60, // bottom type
 
-    TYMAX               = 0x61,
+    TYcompressedPtr     = 0x61, // compressed pointer (32-bit, semantically a pointer)
+
+    TYMAX               = 0x62,
 }
 
 alias TYerror = TYint;
@@ -440,6 +442,7 @@ __gshared const(char)*[TYMAX] tystring =
         TYfptr     : "__far *",
         TYhptr     : "__huge *",
         TYvptr     : "__handle *",
+        TYcompressedPtr : "compressed*",
         TYimmutPtr : "__immutable *",
         TYsharePtr : "__shared *",
         TYrestrictPtr : "__restrict *",
@@ -710,6 +713,7 @@ __gshared byte[256] _tysize =
     TYnsysfunc : -1,
     TYfsysfunc : -1,
     TYfref     : 4,
+    TYcompressedPtr : 4,
 
     TYifunc    : -1,
 ];
@@ -820,6 +824,7 @@ __gshared byte[256] _tyalignsize =
     TYnsysfunc : -1,
     TYfsysfunc : -1,
     TYfref     : 4,
+    TYcompressedPtr : 4,
 
     TYifunc    : -1,
 ];
@@ -828,7 +833,7 @@ __gshared byte[256] _tyalignsize =
 private:
 extern(D):
 
-static immutable TXptr        = [ TYnptr ];
+static immutable TXptr        = [ TYnptr, TYcompressedPtr ];
 static immutable TXptr_nflat  = [ TYsptr,TYcptr,TYf16ptr,TYfptr,TYhptr,TYvptr,TYimmutPtr,TYsharePtr,TYrestrictPtr,TYfgPtr ];
 static immutable TXreal       = [ TYfloat,TYdouble,TYdouble_alias,TYreal,
                      TYfloat4,TYdouble2,

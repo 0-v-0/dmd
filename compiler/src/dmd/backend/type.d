@@ -414,6 +414,19 @@ type* type_pointer(type* tnext)
 }
 
 /********************************
+ * Allocate a compressed pointer type.
+ * Returns:
+ *      Tcount already incremented
+ */
+
+type* type_compressed_pointer(type* tnext)
+{
+    type* t = type_allocn(TYcompressedPtr, tnext);
+    t.Tcount++;
+    return t;
+}
+
+/********************************
  * Allocate a dynamic array type.
  * Returns:
  *      Tcount already incremented

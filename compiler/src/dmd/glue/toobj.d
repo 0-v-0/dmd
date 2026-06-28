@@ -106,6 +106,50 @@ void write_pointers(Type type, Symbol* s, uint offset)
         return objmod.write_pointerRef(s, offset);
 
     write_instance_pointers(type, s, offset);
+    write_compressed_ptr_refs(type, s, offset);
+}
+
+/*****************************************
+ * Walk type tree and emit write_pointerRef for compressed pointer fields
+ * at their exact (4-byte aligned) offsets.
+ * Params:
+ *      type   = type to walk
+ *      s      = symbol that contains the data
+ *      offset = base offset within the Symbol's memory
+ */
+private void write_compressed_ptr_refs(Type type, Symbol* s, uint baseOffset)
+{
+    import dmd.typesem : hasPointers;
+    auto tb = type.toBasetype();
+    switch (tb.ty)
+    {
+        case Tcompressedptr:
+            objmod.write_pointerRef(s, baseOffset);
+            break;
+        case Tstruct:
+            auto ts = cast(TypeStruct)tb;
+            foreach (v; ts.sym.fields)
+            {
+                uint fieldOff = cast(uint)(baseOffset + v.offset);
+                if (v.type.isTypeCompressedPointer())
+                    objmod.write_pointerRef(s, fieldOff);
+                else if (!v.type.isTypeTuple())
+                    write_compressed_ptr_refs(v.type, s, fieldOff);
+            }
+            break;
+        case Tsarray:
+            if (hasPointers(tb))
+            {
+                auto tsa = cast(TypeSArray)tb;
+                ulong elemSize = tsa.next.size();
+                ulong dim = tsa.dim.toInteger();
+                for (ulong i = 0; i < dim; i++)
+                    write_compressed_ptr_refs(tsa.next, s, cast(uint)(baseOffset + i * elemSize));
+            }
+            break;
+        default:
+            break;
+    }
 }
 
 /*****************************************

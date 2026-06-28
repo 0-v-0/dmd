@@ -127,6 +127,7 @@ private TypeInfoDeclaration getTypeInfoDeclaration(Type t, Scope* sc)
     switch (t.ty)
     {
     case Tpointer:
+    case Tcompressedptr:
         return TypeInfoPointerDeclaration.create(t);
     case Tarray:
         return TypeInfoArrayDeclaration.create(t);

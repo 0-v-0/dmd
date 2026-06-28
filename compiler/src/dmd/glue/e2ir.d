@@ -179,6 +179,12 @@ elem* elAssign(elem* e1, elem* e2, Type t, type* tx)
         e2 = el_pair(TYdelegate, el_long(TYnptr, 0), e2);
     }
 
+    // Encode full pointer when storing to compressed pointer lvalue
+    if (target.useCompressedPointers && tybasic(e1.Ety) == TYcompressedPtr)
+    {
+        e2 = el_bin(OPmin, TYcompressedPtr, e2, el_var(heapBaseSym()));
+    }
+
     elem* e = el_bin(OPeq, e2.Ety, e1, e2);
     switch (tybasic(e2.Ety))
     {
@@ -200,6 +206,22 @@ elem* elAssign(elem* e1, elem* e2, Type t, type* tx)
             break;
     }
     return e;
+}
+
+/************************************
+ * Get Symbol for compressed pointer heap base.
+ */
+private Symbol* heapBaseSym()
+{
+    static Symbol* sym;
+    if (!sym)
+    {
+        sym = symbol_calloc("__d_heap_base");
+        sym.Stype = tspvoid;
+        sym.Sclass = SC.extern_;
+        sym.Ssymnum = SYMIDX.max;
+    }
+    return sym;
 }
 
 /*******************************************************
@@ -3646,6 +3668,11 @@ elem* toElem(Expression e, ref IRState irs)
     {
         //printf("PtrExp.toElem() %s\n", pe.toChars());
         elem* e = toElem(pe.e1, irs);
+
+        // Decode compressed pointer to full pointer before dereferencing
+        if (target.useCompressedPointers && tybasic(e.Ety) == TYcompressedPtr)
+            e = el_bin(OPadd, TYnptr, e, el_var(heapBaseSym()));
+
         if (tybasic(e.Ety) == TYnptr &&
             pe.e1.type.nextOf() &&
             pe.e1.type.nextOf().isImmutable())

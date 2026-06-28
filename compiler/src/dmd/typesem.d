@@ -2874,6 +2874,7 @@ bool hasPointers(Type t)
         case Tarray:        return visitDArray(t.isTypeDArray());
         case Taarray:       return visitAArray(t.isTypeAArray());
         case Tpointer:      return visitPointer(t.isTypePointer());
+        case Tcompressedptr:return visitPointer(cast(TypePointer)t);
         case Tdelegate:     return visitDelegate(t.isTypeDelegate());
         case Tstruct:       return visitStruct(t.isTypeStruct());
         case Tenum:         return visitEnum(t.isTypeEnum());
@@ -3197,6 +3198,7 @@ MATCH constConv(Type from, Type to)
         case Tslice:
         case Tarray:        return visitNext(cast(TypeNext)from);
         case Tpointer:      return visitPointer(from.isTypePointer());
+        case Tcompressedptr:return visitPointer(cast(TypePointer)from);
         case Tfunction:     return visitFunction(from.isTypeFunction());
         case Tstruct:       return visitStruct(from.isTypeStruct());
         case Tenum:         return visitEnum(from.isTypeEnum());
@@ -4771,6 +4773,7 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
         case Tarray:     return visitDArray(type.isTypeDArray());
         case Taarray:    return visitAArray(type.isTypeAArray());
         case Tpointer:   return visitPointer(type.isTypePointer());
+        case Tcompressedptr: return visitPointer(cast(TypePointer)type);
         case Treference: return visitReference(type.isTypeReference());
         case Tfunction:  return visitFunction(type.isTypeFunction());
         case Tdelegate:  return visitDelegate(type.isTypeDelegate());

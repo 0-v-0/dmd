@@ -12,6 +12,7 @@
 module dmd.visitor;
 
 import dmd.astcodegen;
+import dmd.mtype : Type, TypeCompressedPointer;
 import dmd.tokens;
 import dmd.rootobject;
 import dmd.visitor.parsetime;
@@ -88,6 +89,9 @@ public:
     void visit(ASTCodegen.VoidInitExp e) { visit(cast(ASTCodegen.Expression)e); }
     void visit(ASTCodegen.ThrownExceptionExp e) { visit(cast(ASTCodegen.Expression)e); }
     void visit(ASTCodegen.LoweredAssignExp e) { visit(cast(ASTCodegen.AssignExp)e); }
+
+    // TypeCompressedPointer visitor routing
+    void visit(TypeCompressedPointer t) { visit(cast(Type)t); }
 }
 
 /**

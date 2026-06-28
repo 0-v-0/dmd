@@ -194,6 +194,12 @@ ulong getTypePointerBitmap(Loc loc, Type t, ref Array!(ulong) data, ErrorSink eS
                 setpointer(offset);
         }
 
+        void visitCompressedPointer(TypeCompressedPointer t)
+        {
+            // Compressed pointers are handled separately in toobj.d
+            // with exact 4-byte offsets; do not mark in the top-level bitmap
+        }
+
         void visitReference(TypeReference t)
         {
             setpointer(offset);

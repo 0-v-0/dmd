@@ -278,6 +278,7 @@ tym_t totym(Type tx)
         case Tclass:
         case Treference:
         case Tpointer:  t = TYnptr;     break;
+        case Tcompressedptr: t = TYcompressedPtr; break;
         case Tdelegate: t = TYdelegate; break;
         case Tarray:    t = TYdarray;   break;
         case Tsarray:   t = TYstruct;   break;

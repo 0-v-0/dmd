@@ -784,6 +784,7 @@ extern (C++) abstract class Type : ASTNode
         inout(TypeDArray)     isTypeDArray()     { return ty == Tarray     ? cast(typeof(return))this : null; }
         inout(TypeAArray)     isTypeAArray()     { return ty == Taarray    ? cast(typeof(return))this : null; }
         inout(TypePointer)    isTypePointer()    { return ty == Tpointer   ? cast(typeof(return))this : null; }
+        inout(TypeCompressedPointer) isTypeCompressedPointer() { return ty == Tcompressedptr ? cast(typeof(return))this : null; }
         inout(TypeReference)  isTypeReference()  { return ty == Treference ? cast(typeof(return))this : null; }
         inout(TypeFunction)   isTypeFunction()   { return ty == Tfunction  ? cast(typeof(return))this : null; }
         inout(TypeDelegate)   isTypeDelegate()   { return ty == Tdelegate  ? cast(typeof(return))this : null; }
@@ -1259,6 +1260,45 @@ extern (C++) final class TypePointer : TypeNext
             return this;
 
         auto result = new TypePointer(t);
+        result.mod = mod;
+        return result;
+    }
+
+    override void accept(Visitor v)
+    {
+        v.visit(this);
+    }
+}
+
+/***********************************************************
+ * Represents a compressed pointer type.
+ * ABI size is compressedPtrSize (usually 4 bytes) instead of ptrsize (8 bytes).
+ * On load/store, the value is automatically encoded/decoded against heapBase.
+ */
+extern (C++) final class TypeCompressedPointer : TypeNext
+{
+    extern (D) this(Type t) @safe
+    {
+        super(Tcompressedptr, t);
+    }
+
+    static TypeCompressedPointer create(Type t) @safe
+    {
+        return new TypeCompressedPointer(t);
+    }
+
+    override const(char)* kind() const
+    {
+        return "compressed pointer";
+    }
+
+    override TypeCompressedPointer syntaxCopy()
+    {
+        Type t = next.syntaxCopy();
+        if (t == next)
+            return this;
+
+        auto result = new TypeCompressedPointer(t);
         result.mod = mod;
         return result;
     }
@@ -2869,6 +2909,7 @@ mixin template VisitType(Result)
             case TY.Tmixin:     mixin(visitTYCase("Mixin"));
             case TY.Tnoreturn:  mixin(visitTYCase("Noreturn"));
             case TY.Ttag:       mixin(visitTYCase("Tag"));
+            case TY.Tcompressedptr: mixin(visitTYCase("CompressedPointer"));
             case TY.Tnone:      assert(0);
         }
     }

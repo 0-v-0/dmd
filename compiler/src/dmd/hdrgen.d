@@ -4423,7 +4423,13 @@ private void typeToBufferx(Type t, ref OutBuffer buf, ref HdrGenState hgs)
     void visitPointer(TypePointer t)
     {
         //printf("TypePointer::toCBuffer2() next = %d\n", t.next.ty);
-        if (t.next.ty == Tfunction)
+        if (t.isTypeCompressedPointer())
+        {
+            visitWithMask(t.next, t.mod, buf, hgs);
+            buf.put('*');
+            buf.put("(compressed)");
+        }
+        else if (t.next.ty == Tfunction)
             visitFuncIdentWithPostfix(cast(TypeFunction)t.next, "function", buf, hgs, false);
         else
         {
@@ -4617,6 +4623,7 @@ private void typeToBufferx(Type t, ref OutBuffer buf, ref HdrGenState hgs)
         case Tarray:     return visitDArray(cast(TypeDArray)t);
         case Taarray:    return visitAArray(cast(TypeAArray)t);
         case Tpointer:   return visitPointer(cast(TypePointer)t);
+        case Tcompressedptr: return visitPointer(cast(TypePointer)t);
         case Treference: return visitReference(cast(TypeReference)t);
         case Tfunction:  return visitFunction(cast(TypeFunction)t);
         case Tdelegate:  return visitDelegate(cast(TypeDelegate)t);

@@ -33,6 +33,7 @@ import dmd.dsymbolsem : isPOD;
 import dmd.expressionsem : toInteger;
 import dmd.id;
 import dmd.mtype;
+import dmd.target;
 import dmd.typesem;
 
 package(dmd.glue):
@@ -121,6 +122,14 @@ type* Type_toCtype(Type t)
     static type* visitPointer(TypePointer t)
     {
         //printf("TypePointer::toCtype() %s\n", t.toChars());
+        if (auto tcp = t.isTypeCompressedPointer())
+        {
+            return type_compressed_pointer(Type_toCtype(tcp.next));
+        }
+        if (target.useCompressedPointers)
+        {
+            return type_compressed_pointer(Type_toCtype(t.next));
+        }
         return type_pointer(Type_toCtype(t.next));
     }
 
@@ -347,7 +356,8 @@ type* Type_toCtype(Type t)
         case Tsarray:   tr = visitSArray  (t.isTypeSArray());   break;
         case Tarray:    tr = visitDArray  (t.isTypeDArray());   break;
         case Taarray:   tr = visitAArray  (t.isTypeAArray());   break;
-        case Tpointer:  tr = visitPointer (t.isTypePointer());  break;
+        case Tpointer:        tr = visitPointer (t.isTypePointer());  break;
+        case Tcompressedptr:  tr = visitPointer (cast(TypePointer)t); break;
         case Tfunction: tr = visitFunction(t.isTypeFunction()); break;
         case Tdelegate: tr = visitDelegate(t.isTypeDelegate()); break;
         case Tstruct:   tr = visitStruct  (t.isTypeStruct());   break;

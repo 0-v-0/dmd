@@ -228,6 +228,7 @@ enum TY : ubyte
     Tmixin,
     Tnoreturn,
     Ttag,
+    Tcompressedptr,
 }
 enum TMAX = TY.max + 1;
 
@@ -279,6 +280,7 @@ alias Ttraits = TY.Ttraits;
 alias Tmixin = TY.Tmixin;
 alias Tnoreturn = TY.Tnoreturn;
 alias Ttag = TY.Ttag;
+alias Tcompressedptr = TY.Tcompressedptr;
 
 enum TFlags
 {

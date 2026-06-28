@@ -1348,10 +1348,16 @@ private extern (C++) class TypeInfoDtVisitor : Visitor
     override void visit(TypeInfoPointerDeclaration d)
     {
         //printf("TypeInfoPointerDeclaration.toDt()\n");
-        auto tc = d.tinfo.isTypePointer();
-        TypeInfo_toObjFile(null, d.loc, tc.next);
+        Type tn;
+        if (auto tp = d.tinfo.isTypePointer())
+            tn = tp.next;
+        else if (auto tcp = d.tinfo.isTypeCompressedPointer())
+            tn = tcp.next;
+        else
+            assert(false);
+        TypeInfo_toObjFile(null, d.loc, tn);
         classFieldsToDt(Type.typeinfopointer,
-            new Expressions(new SymOffExp(d.loc, tc.next.vtinfo, 0)), *dtb);
+            new Expressions(new SymOffExp(d.loc, tn.vtinfo, 0)), *dtb);
     }
 
     override void visit(TypeInfoArrayDeclaration d)

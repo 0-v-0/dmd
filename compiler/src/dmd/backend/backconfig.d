@@ -557,6 +557,8 @@ if (exe & EX_windos)
     _tyalignsize[TYsharePtr] = _tyalignsize[TYnptr];
     _tyalignsize[TYrestrictPtr] = _tyalignsize[TYnptr];
     _tyalignsize[TYfgPtr] = _tyalignsize[TYnptr];
+    _tysize[TYcompressedPtr] = 4;
+    _tyalignsize[TYcompressedPtr] = 4;
 }
 
 /*******************************
@@ -643,6 +645,8 @@ void util_set64(exefmt_t exe)
     _tyalignsize[TYsharePtr] = _tyalignsize[TYnptr];
     _tyalignsize[TYrestrictPtr] = _tyalignsize[TYnptr];
     _tyalignsize[TYfgPtr] = _tyalignsize[TYnptr];
+    _tysize[TYcompressedPtr] = 4;
+    _tyalignsize[TYcompressedPtr] = 4;
 }
 
 @trusted

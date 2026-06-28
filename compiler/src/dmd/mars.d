@@ -1603,6 +1603,35 @@ bool parseCommandLine(const ref Strings arguments, const size_t argc, out Param 
         {
             params.ehnogc = true;
         }
+        else if (startsWith(p + 1, "compressed-pointers"))  // https://dlang.org/dmd.html#switch-compressed-pointers
+        {
+            enum len = "-compressed-pointers".length;
+            if (p[len] == 0)
+            {
+                params.useCompressedPointers = true;
+            }
+            else if (p[len] == '=')
+            {
+                auto val = (p + len + 1).toDString();
+                switch (val)
+                {
+                    case "on":
+                        params.useCompressedPointers = true;
+                        break;
+                    case "off":
+                        params.useCompressedPointers = false;
+                        break;
+                    default:
+                        errorInvalidSwitch(p);
+                        params.help.compressedPointers = true;
+                        return false;
+                }
+            }
+            else
+            {
+                goto Lerror;
+            }
+        }
         else if (arg == "-lib")         // https://dlang.org/dmd.html#switch-lib
             driverParams.lib = params.fullyQualifiedObjectFiles = true;
         else if (arg == "-nofloat")
