@@ -6673,10 +6673,7 @@ Expression dotExp(Type mt, Scope* sc, Expression e, Identifier ident, DotExpFlag
                  * e.g.
                  *  template opDispatch(name) if (isValid!name) { ... }
                  */
-                const errors = gagError ? global.startGagging() : 0;
                 e = dti.dotTemplateSemanticProp(sc, DotExpFlag.none);
-                if (gagError && global.endGagging(errors))
-                    e = null;
                 return returnExp(e);
             }
 
