@@ -5339,6 +5339,7 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
                     oarg = argtype;
                 }
                 else if ((fparam.storageClass & STC.out_) == 0 &&
+                         (prmtype.mod & MODFlags.wild) == 0 &&
                          (argtype.ty == Tarray || argtype.ty == Tpointer) &&
                          templateParameterLookup(prmtype, td.parameters) != IDX_NOTFOUND &&
                          prmtype.isTypeIdentifier().idents.length == 0)
@@ -5346,6 +5347,11 @@ private MATCHpair deduceFunctionTemplateMatch(TemplateDeclaration td, TemplateIn
                     /* The farg passing to the prmtype always make a copy. Therefore,
                      * we can shrink the set of the deduced type arguments for prmtype
                      * by adjusting top-qualifier of the argtype.
+                     *
+                     * Do not apply this to inout parameters. For tail-qualified
+                     * array/pointer types such as `string`, that would convert
+                     * `immutable(char)[]` into `immutable(char[])` and lose the
+                     * original template argument.
                      *
                      *  prmtype         argtype     ta
                      *  T            <- const(E)[]  const(E)[]
