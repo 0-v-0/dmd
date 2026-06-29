@@ -367,8 +367,8 @@ UnionExp copyLiteral(Expression e)
         emplaceExp!(UnionExp)(&ue, e);
         return ue;
     }
-    error(e.loc, "CTFE internal error: literal `%s`", e.toErrMsg());
-    assert(0);
+    error(e.loc, "CTFE internal error: literal `%s` could not be copied.", e.toErrMsg());
+    return UnionExp(CTFEExp.cantexp);
 }
 
 /* Deal with type painting.
