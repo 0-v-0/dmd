@@ -1965,7 +1965,7 @@ MATCH implicitConvTo(Type from, Type to)
         //if (type.ty == Tpointer && type.nextOf().ty == Tvoid)
         {
             Type tb = to.toBasetype();
-            if (tb.ty == Tnull || tb.ty == Tpointer || tb.ty == Tarray || tb.ty == Taarray || tb.ty == Tclass || tb.ty == Tdelegate)
+            if (tb.ty == Tnull || tb.ty == Tpointer || tb.ty == Tcompressedptr || tb.ty == Tarray || tb.ty == Taarray || tb.ty == Tclass || tb.ty == Tdelegate)
                 return MATCH.constant;
         }
 
@@ -2167,8 +2167,8 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         const(bool) t1b_isFR = (t1b.ty == Tarray || t1b.ty == Tdelegate);
 
         // Reference types
-        const(bool) tob_isR = (tob_isFR || tob.ty == Tpointer || tob.ty == Taarray || tob.ty == Tclass);
-        const(bool) t1b_isR = (t1b_isFR || t1b.ty == Tpointer || t1b.ty == Taarray || t1b.ty == Tclass);
+        const(bool) tob_isR = (tob_isFR || tob.ty == Tpointer || tob.ty == Tcompressedptr || tob.ty == Taarray || tob.ty == Tclass);
+        const(bool) t1b_isR = (t1b_isFR || t1b.ty == Tpointer || t1b.ty == Tcompressedptr || t1b.ty == Taarray || t1b.ty == Tclass);
 
         // Arithmetic types (== valueable basic types)
         const(bool) tob_isA = ((tob.isIntegral() || tob.isFloating()) && tob.ty != Tvector);
@@ -2264,7 +2264,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
 
         // arithmetic values vs. other arithmetic values
         // arithmetic values vs. T*
-        if (tob_isA && (t1b_isA || t1b.ty == Tpointer) || t1b_isA && (tob_isA || tob.ty == Tpointer))
+        if (tob_isA && (t1b_isA || t1b.ty == Tpointer || t1b.ty == Tcompressedptr) || t1b_isA && (tob_isA || tob.ty == Tpointer || tob.ty == Tcompressedptr))
         {
             return ok();
         }
@@ -3338,7 +3338,7 @@ Expression scaleFactor(BinExp be, Scope* sc)
     Type t2b = be.e2.type.toBasetype();
     Expression eoff;
 
-    if (t1b.ty == Tpointer && t2b.isIntegral())
+    if ((t1b.ty == Tpointer || t1b.ty == Tcompressedptr) && t2b.isIntegral())
     {
         // Need to adjust operator by the stride
         // Replace (ptr + int) with (ptr + (int * stride))
@@ -3352,7 +3352,7 @@ Expression scaleFactor(BinExp be, Scope* sc)
         be.e2.type = t;
         be.type = be.e1.type;
     }
-    else if (t2b.ty == Tpointer && t1b.isIntegral())
+    else if ((t2b.ty == Tpointer || t2b.ty == Tcompressedptr) && t1b.isIntegral())
     {
         // Need to adjust operator by the stride
         // Replace (int + ptr) with (ptr + (int * stride))

@@ -5654,7 +5654,7 @@ public:
             result = CTFEExp.voidexp;
             return;
         }
-        if (e.to.ty == Tpointer && e1.op != EXP.null_)
+        if ((e.to.ty == Tpointer || e.to.ty == Tcompressedptr) && e1.op != EXP.null_)
         {
             Type pointee = (cast(TypePointer)e.type).next;
             // Implement special cases of normally-unsafe casts
@@ -5662,6 +5662,12 @@ public:
             {
                 // Happens with Windows HANDLEs, for example.
                 result = paintTypeOntoLiteral(pue, e.to, e1);
+                return;
+            }
+            if (e.to.ty == Tcompressedptr)
+            {
+                error(e.loc, "pointer cast from `%s` to `%s` is not supported at compile time", e1.type.toErrMsg(), e.to.toErrMsg());
+                result = CTFEExp.cantexp;
                 return;
             }
 

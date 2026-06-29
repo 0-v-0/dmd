@@ -483,7 +483,7 @@ bool _isRoughlyScalar(Type _this)
 {
     if (auto tb = _this.isTypeBasic())
         return (tb.flags & TFlags.integral | TFlags.floating) != 0;
-    else if (_this.ty == Tenum || _this.ty == Tpointer) // the enum is possibly scalar
+    else if (_this.ty == Tenum || _this.ty == Tpointer || _this.ty == Tcompressedptr) // the enum is possibly scalar
         return true;
     return false;
 }

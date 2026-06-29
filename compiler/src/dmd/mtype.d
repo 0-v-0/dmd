@@ -753,8 +753,9 @@ extern (C++) abstract class Type : ASTNode
          */
         inout(TypeFunction) isPtrToFunction()
         {
-            return (ty == Tpointer && (cast(TypePointer)this).next.ty == Tfunction)
-                ? cast(typeof(return))(cast(TypePointer)this).next
+            return (ty == Tpointer && (cast(TypePointer)this).next.ty == Tfunction ||
+                    ty == Tcompressedptr && (cast(TypeCompressedPointer)this).next.ty == Tfunction)
+                ? cast(typeof(return))(ty == Tpointer ? (cast(TypePointer)this).next : (cast(TypeCompressedPointer)this).next)
                 : null;
         }
 

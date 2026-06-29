@@ -13753,13 +13753,15 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         if (err)
             return setError();
 
-        if (tb1.ty == Tpointer && exp.e2.type.isIntegral() || tb2.ty == Tpointer && exp.e1.type.isIntegral())
+        if ((tb1.ty == Tpointer || tb1.ty == Tcompressedptr) && exp.e2.type.isIntegral() ||
+            (tb2.ty == Tpointer || tb2.ty == Tcompressedptr) && exp.e1.type.isIntegral())
         {
             result = scaleFactor(exp, sc);
             return;
         }
 
         if (tb1.ty == Tpointer && tb2.ty == Tpointer ||
+            tb1.ty == Tcompressedptr && tb2.ty == Tcompressedptr ||
             tb1.ty == Tnull && tb2.ty == Tnull)
         {
             result = exp.incompatibleTypes();
@@ -13857,10 +13859,10 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         if (err)
             return setError();
 
-        if (t1.ty == Tpointer)
+        if (t1.ty == Tpointer || t1.ty == Tcompressedptr)
         {
             Expression e;
-            if (t2.ty == Tpointer)
+            if (t2.ty == Tpointer || t2.ty == Tcompressedptr)
             {
                 // https://dlang.org/spec/expression.html#add_expressions
                 // "If both operands are pointers, and the operator is -, the pointers are
@@ -13912,7 +13914,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             result = e;
             return;
         }
-        if (t2.ty == Tpointer)
+        if (t2.ty == Tpointer || t2.ty == Tcompressedptr)
         {
             exp.type = exp.e2.type;
             error(exp.loc, "can't subtract pointer from `%s`", exp.e1.type.toErrMsg());

@@ -3705,6 +3705,13 @@ Type typeSemantic(Type type, Loc loc, Scope* sc)
         mtype.next = n;
         if (mtype.next.ty != Tfunction)
         {
+            if (target.useCompressedPointers)
+            {
+                auto cp = TypeCompressedPointer.create(mtype.next);
+                cp.mod = mtype.mod;
+                cp.transitive();
+                return merge(cp);
+            }
             mtype.transitive();
             return merge(mtype);
         }
