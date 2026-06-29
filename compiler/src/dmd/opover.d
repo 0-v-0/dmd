@@ -1072,27 +1072,31 @@ private Expression pickBestBinaryOverload(Scope* sc, Objects* tiargs, Dsymbol s,
             return ErrorExp.get();
     }
     FuncDeclaration lastf = m.lastf;
-    int count = m.count;
     if (s_r)
     {
-        functionResolve(m, s_r, e.loc, sc, tiargs, e.e2.type, ArgumentList(args1), null);
-        if (m.lastf && (m.lastf.errors || m.lastf.hasSemantic3Errors))
+        MatchAccumulator m1;
+        functionResolve(m1, s_r, e.loc, sc, tiargs, e.e2.type, ArgumentList(args1), null);
+        if (m1.lastf && (m1.lastf.errors || m1.lastf.hasSemantic3Errors))
             return ErrorExp.get();
+        // Keep the two sides separate until after resolution so the reverse
+        // lookup cannot overwrite the forward-side match state.
+        if (m.count && m1.count)
+        {
+            if (m.last < m1.last)
+                m = m1;
+            else if (m.last == m1.last)
+            {
+                m.count += m1.count;
+                if (m.lastf != m1.lastf)
+                    m.nextf = m1.lastf;
+            }
+        }
+        else if (!m.count && m1.count)
+            m = m1;
     }
     if (m.count > 1)
     {
-        /* The following if says "not ambiguous" if there's one match
-         * from s and one from s_r, in which case we pick s.
-         * This doesn't follow the spec, but is a workaround for the case
-         * where opEquals was generated from templates and we cannot figure
-         * out if both s and s_r came from the same declaration or not.
-         * The test case is:
-         *   import std.typecons;
-         *   void main() {
-         *    assert(tuple("has a", 2u) == tuple("has a", 1));
-         *   }
-         */
-        if (!(m.lastf == lastf && m.count == 2 && count == 1))
+        if (m.nextf && m.nextf != m.lastf)
         {
             // Error, ambiguous
             error(e.loc, "overloads `%s` and `%s` both match argument list for `%s`", m.lastf.type.toErrMsg(), m.nextf.type.toErrMsg(), m.lastf.toErrMsg());
