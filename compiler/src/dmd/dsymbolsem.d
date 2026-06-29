@@ -1304,7 +1304,8 @@ private bool importOverloadInsert(Import _this, Dsymbol s){
      * alias collisions
      * https://issues.dlang.org/show_bug.cgi?id=5412
      */
-    assert(_this.ident && _this.ident == s.ident);
+    if (!_this.ident || _this.ident != s.ident)
+        return false;
     if (_this.aliasId)
         return false;
     const imp = s.isImport();
