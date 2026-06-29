@@ -2452,17 +2452,46 @@ private void printCandidates(Decl)(Loc loc, Decl declaration, bool showDeprecate
 Expression addInvariant(AggregateDeclaration ad, VarDeclaration vthis)
 {
     Expression e = null;
-    // Call invariant directly only if it exists
-    FuncDeclaration inv = ad.inv;
     ClassDeclaration cd = ad.isClassDeclaration();
 
-    while (!inv && cd)
+    if (cd)
     {
-        cd = cd.baseClass;
-        if (!cd)
-            break;
-        inv = cd.inv;
+        for (; cd; cd = cd.baseClass)
+        {
+            FuncDeclaration inv = cd.inv;
+            if (!inv)
+                continue;
+
+            version (all)
+            {
+                // Workaround for https://issues.dlang.org/show_bug.cgi?id=13394
+                // For the correct mangling,
+                // run attribute inference on inv if needed.
+                functionSemantic(inv);
+            }
+
+            //e = new DsymbolExp(Loc.initial, inv);
+            //e = new CallExp(Loc.initial, e);
+            //e = e.semantic(sc2);
+
+            /* https://issues.dlang.org/show_bug.cgi?id=13113
+             * Currently virtual invariant calls completely
+             * bypass attribute enforcement.
+             * Change the behavior of pre-invariant call by following it.
+             */
+            Expression ei = new ThisExp(Loc.initial);
+            ei.type = ad.type.addMod(vthis.type.mod);
+            ei = new DotVarExp(Loc.initial, ei, inv, false);
+            ei.type = inv.type;
+            ei = new CallExp(Loc.initial, ei);
+            ei.type = Type.tvoid;
+            e = Expression.combine(e, ei);
+        }
+        return e;
     }
+
+    // Call invariant directly only if it exists
+    FuncDeclaration inv = ad.inv;
     if (!inv)
         return e;
 
