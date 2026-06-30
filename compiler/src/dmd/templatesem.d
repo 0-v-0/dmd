@@ -2452,11 +2452,10 @@ void aliasSeqInstanceSemantic(TemplateInstance tempinst, Scope* sc, TemplateDecl
     Tuple va = tempinst.tdtypes[0].isTuple();
     Declaration d = new TupleDeclaration(tempinst.loc, ttp.ident, &va.objects);
     d.storage_class |= STC.templateparameter;
-    auto dd = findDeprecatedOneMember(tempdecl);
     auto onemember = tempdecl.onemember;
-    if ((onemember && onemember.isDeprecated()) || dd)
+    if (onemember && onemember.isDeprecated())
         d.storage_class |= STC.deprecated_;
-    d.depdecl = dd ? dd : (onemember ? onemember.depdecl : null);
+    d.depdecl = onemember ? onemember.depdecl : null;
     d.dsymbolSemantic(sc);
 
     paramscope.pop();
