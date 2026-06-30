@@ -7224,20 +7224,6 @@ private void aliasAssignSemantic(AliasAssign ds, Scope* sc)
     const errors = global.errors;
     Dsymbol s;
 
-    // Try AliasSeq optimization
-    if (auto ti = ds.type.isTypeInstance())
-    {
-        import dmd.templatesem : findTempDecl;
-        if (!findTempDecl(ti.tempinst, sc, null))
-            return errorRet();
-        if (auto tempinst = isAliasSeq(sc, ti))
-        {
-            s = aliasAssignInPlace(sc, tempinst, aliassym);
-            if (!s)
-                return errorRet();
-            goto Lsymdone;
-        }
-    }
 
     /* This section is needed because Type.resolve() will:
      *   const x = 3;
