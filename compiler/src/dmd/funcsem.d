@@ -1574,6 +1574,8 @@ bool functionSemantic(FuncDeclaration fd)
     //printf("functionSemantic() %p %s\n", this, toChars());
     if (!fd._scope)
         return !fd.errors;
+    if (fd.semanticRun >= PASS.semantic)
+        return !fd.errors;
 
     fd.cppnamespace = fd._scope.namespace;
 
