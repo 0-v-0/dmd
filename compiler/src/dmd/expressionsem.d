@@ -18587,8 +18587,15 @@ private Modifiable checkModify(Declaration d, Loc loc, Scope* sc, Expression e1,
     if (v && v.canassign)
         return Modifiable.initialization;
 
-    if (v && sc.func && sc.func.isFuncLiteralDeclaration() && d.parent && d.parent != sc.parent)
+    if (v && sc.func && sc.func.isNested() && d.parent && d.parent != sc.parent)
         markContextModWrite(sc.func);
+
+    if (v && sc.func && (sc.func.type.mod & (MODFlags.const_ | MODFlags.immutable_)) &&
+        sc.func.outerVars.contains(v))
+    {
+        error(loc, "cannot modify captured variable `%s` in `%s` function", d.toErrMsg(), MODtoChars(sc.func.type.mod));
+        return Modifiable.no;
+    }
 
     if (d.isParameter() || d.isResult())
     {
