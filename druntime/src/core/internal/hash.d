@@ -29,10 +29,7 @@ private enum floatCoalesceNaNs = true;
         assert(hashOf(double.nan) == hashOf(-double.nan)); // Same hash for different NaN.
 }
 
-private enum hasCallableToHash(T) = __traits(compiles,
-    {
-        size_t hash = ((T* x) => (*x).toHash())(null);
-    });
+private enum hasCallableToHash(T) = __traits(hasMember, T, "toHash");
 
 @nogc nothrow pure @safe unittest
 {
