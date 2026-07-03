@@ -1917,7 +1917,6 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         {
             const errors = global.startGagging();
             Scope* sc2 = sc.push();
-            sc2.tinst = null;
             sc2.minst = null;   // this is why code for these are not emitted to object file
             sc2.copyFlagsFrom(sc);
             sc2.ctfe = false;
