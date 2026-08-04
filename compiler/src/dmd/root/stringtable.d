@@ -131,16 +131,20 @@ public:
     */
     inout(StringValue!T)* lookup(scope const(char)[] str) inout @nogc nothrow pure
     {
-        const(size_t) hash = calcHash(str);
-        const(size_t) i = findSlot(hash, str);
-        // printf("lookup %.*s %p\n", cast(int)str.length, str.ptr, table[i].value ?: null);
-        return getValue(table[i].vptr);
+        return lookup(str, calcHash(str));
     }
 
     /// ditto
     inout(StringValue!T)* lookup(scope const(char)* s, size_t length) inout @nogc nothrow pure
     {
         return lookup(s[0 .. length]);
+    }
+
+    /// lookup with precomputed hash (private)
+    private inout(StringValue!T)* lookup(scope const(char)[] str, uint hash) inout @nogc nothrow pure
+    {
+        const size_t i = findSlot(hash, str);
+        return getValue(table[i].vptr);
     }
 
     /**
@@ -159,7 +163,11 @@ public:
     */
     StringValue!(T)* insert(scope const(char)[] str, T value) nothrow pure
     {
-        const(size_t) hash = calcHash(str);
+        return insert(str, calcHash(str), value);
+    }
+
+    StringValue!(T)* insert(scope const(char)[] str, uint hash, T value) nothrow pure
+    {
         size_t i = findSlot(hash, str);
         if (table[i].vptr)
             return null; // already in table
@@ -182,7 +190,11 @@ public:
 
     StringValue!(T)* update(scope const(char)[] str) nothrow pure
     {
-        const(size_t) hash = calcHash(str);
+        return update(str, calcHash(str));
+    }
+
+    StringValue!(T)* update(scope const(char)[] str, uint hash) nothrow pure
+    {
         size_t i = findSlot(hash, str);
         if (!table[i].vptr)
         {

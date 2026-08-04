@@ -27,6 +27,7 @@ import dmd.common.outbuffer;
 import dmd.common.charactertables;
 import dmd.root.array;
 import dmd.root.ctfloat;
+import dmd.root.hash;
 import dmd.root.port;
 import dmd.root.rmem;
 import dmd.root.utf;
@@ -1534,22 +1535,41 @@ class Lexer
     {
         Identifier id;
 
+        // Fast path for ASCII identifiers: scan and pool directly without invoking
+        // the slow UTF-8/UCN machinery. Most D source identifiers are pure ASCII,
+        // so this path is hot and worth optimizing separately.
         if (!startsUCN)
         {
-            while (isidchar(*p))
-                p++;
+            // Inline ASCII identifier-character scan to avoid the cmtable lookup
+            // in isidchar() on every byte. Bytes >= 0x80 fall through to the
+            // slow path (UTF-8 multibyte identifier chars).
+            const(char)* pend = p;
+            while (true)
+            {
+                const c = *pend;
+                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                    (c >= '0' && c <= '9') || c == '_')
+                    pend++;
+                else
+                    break;
+            }
+            if (!(*pend & 0x80) && (!Ccompile || *pend != '\\'))
+            {
+                p = pend;
+                auto identSlice = (cast(char*)t.ptr)[0 .. p - t.ptr];
+                id = Identifier.idPool(identSlice, calcHash(identSlice), false);
+                t.ident = id;
+                t.value = cast(TOK)id.getValue();
+                return true;
+            }
+            // Stopped on a non-ASCII byte; fall through to the slow path with
+            // however many ASCII bytes we already consumed.
+            p = pend;
         }
 
-        if (!startsUCN && !(*p & 0x80) && (!Ccompile || *p != '\\'))
-        {
-            // Fast path for ascii identifiers
-            id = Identifier.idPool((cast(char*)t.ptr)[0 .. p - t.ptr], false);
-        }
-        else
-        {
-            // Slow path for identifiers with UCNs and UTF8 characters
-            stringbuffer.setsize(0);
-            stringbuffer.writestring(t.ptr[0 .. p - t.ptr]);
+        // Slow path for identifiers with UCNs and UTF8 characters
+        stringbuffer.setsize(0);
+        stringbuffer.writestring(t.ptr[0 .. p - t.ptr]);
 
         IdentLoop:
             while (1)
@@ -1626,8 +1646,8 @@ class Lexer
                 stringbuffer.writeUTF8(u);
             }
 
-            id = Identifier.idPool(stringbuffer[], false);
-        }
+            auto identStr = stringbuffer[];
+            id = Identifier.idPool(identStr, calcHash(identStr), false);
 
         t.ident = id;
         t.value = cast(TOK)id.getValue();

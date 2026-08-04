@@ -191,7 +191,12 @@ public:
             }
             else if (allocated <= SMALLARRAYCAP)
             {
-                const allocdim = length + nentries;
+                // Grow from inline smallarray to heap storage.
+                // Pick an initial heap capacity with headroom so the next few
+                // push() calls do not immediately trigger another realloc.
+                // Use max(requested, length + 8) to amortize rapid growth from 0/1.
+                const minAlloc = length + nentries;
+                const allocdim = minAlloc > 8 ? minAlloc : 8;
                 auto p = cast(T*)mem.xmalloc(allocdim * T.sizeof);
                 memcpy(p, smallarray.ptr, length * T.sizeof);
                 _ptr = p;

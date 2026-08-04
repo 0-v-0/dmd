@@ -18,6 +18,7 @@ import dmd.id;
 import dmd.location;
 import dmd.common.outbuffer;
 import dmd.rootobject;
+import dmd.root.hash;
 import dmd.root.string;
 import dmd.root.stringtable;
 import dmd.root.utf;
@@ -303,6 +304,19 @@ nothrow:
     extern (D) static Identifier idPool(scope const(char)[] s, bool isAnonymous = false)
     {
         auto sv = stringtable.update(s);
+        auto id = sv.value;
+        if (!id)
+        {
+            id = new Identifier(sv.toString(), TOK.identifier, isAnonymous);
+            sv.value = id;
+        }
+        return id;
+    }
+
+    /// ditto, with precomputed hash
+    extern (D) static Identifier idPool(scope const(char)[] s, uint hash, bool isAnonymous = false)
+    {
+        auto sv = stringtable.update(s, hash);
         auto id = sv.value;
         if (!id)
         {

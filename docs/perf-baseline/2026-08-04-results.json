@@ -1,0 +1,205 @@
+{
+    "base": {
+        "ref": "merge-base",
+        "sha": "11afd77486c55f7a3f26d1866ad9e6401b0f9b12"
+    },
+    "head": {
+        "pr": 0,
+        "sha": "7e69bc6085b15162fe806897382844645bc96edf"
+    },
+    "metrics": [
+        {
+            "base": 215929312,
+            "delta_pct": 0.0,
+            "head": 215934023,
+            "id": "compile_hello_debug_instr",
+            "label": "compile hello.d (instr)",
+            "method": "cachegrind",
+            "unit": "count"
+        },
+        {
+            "base": 234458109,
+            "delta_pct": 0.0,
+            "head": 234462872,
+            "id": "compile_hello_release_instr",
+            "label": "compile hello.d -O (instr)",
+            "method": "cachegrind",
+            "unit": "count"
+        },
+        {
+            "base": 5077407897,
+            "delta_pct": -0.0,
+            "head": 5077400253,
+            "id": "compile_phobos_instr",
+            "label": "compile Phobos (instr)",
+            "method": "cachegrind",
+            "unit": "count"
+        },
+        {
+            "base": 1453321697,
+            "delta_pct": -0.0,
+            "head": 1453311308,
+            "id": "compile_phobos_codegen_instr",
+            "label": "compile Phobos codegen (instr)",
+            "method": "cachegrind",
+            "unit": "count"
+        },
+        {
+            "base": 15136517860,
+            "delta_pct": 0.0,
+            "head": 15136569031,
+            "id": "compile_vibed_instr",
+            "label": "compile vibe.d (instr)",
+            "method": "cachegrind",
+            "unit": "count"
+        },
+        {
+            "base": 7258800,
+            "delta_pct": 0.0,
+            "head": 7258800,
+            "id": "dmd_binary_size",
+            "label": "dmd binary size (stripped)",
+            "method": "stat",
+            "unit": "bytes"
+        },
+        {
+            "base": 750624,
+            "delta_pct": 0.0,
+            "head": 750624,
+            "id": "hello_binary_size",
+            "label": "hello binary size",
+            "method": "stat",
+            "unit": "bytes"
+        },
+        {
+            "base": 44800,
+            "delta_pct": -0.160000000000000003,
+            "head": 44728,
+            "id": "hello_max_rss",
+            "label": "peak RSS (compile hello.d)",
+            "method": "time -v",
+            "unit": "kb"
+        },
+        {
+            "base": 646312,
+            "delta_pct": 0.270000000000000018,
+            "head": 648072,
+            "id": "phobos_max_rss",
+            "label": "peak RSS (compile Phobos)",
+            "method": "time -v",
+            "unit": "kb"
+        },
+        {
+            "base": 2028988,
+            "delta_pct": -0.0100000000000000002,
+            "head": 2028760,
+            "id": "vibed_max_rss",
+            "label": "peak RSS (compile vibe.d)",
+            "method": "time -v",
+            "unit": "kb"
+        }
+    ],
+    "runner": {
+        "host_dmd": "ldc-1.42.0",
+        "os": "ubuntu-latest"
+    },
+    "schema_version": 2,
+    "time_trace": {
+        "hello": {
+            "phases": {
+                "codegen": {
+                    "base": 1618,
+                    "head": 1567
+                },
+                "ctfe": {
+                    "base": 0,
+                    "head": 0
+                },
+                "dfa": {
+                    "base": 0,
+                    "head": 0
+                },
+                "inline": {
+                    "base": 0,
+                    "head": 0
+                },
+                "other": {
+                    "base": 0,
+                    "head": 0
+                },
+                "parse": {
+                    "base": 28316,
+                    "head": 24331
+                },
+                "sema1": {
+                    "base": 9011,
+                    "head": 8531
+                },
+                "sema2": {
+                    "base": 0,
+                    "head": 0
+                },
+                "sema3": {
+                    "base": 4652,
+                    "head": 4485
+                },
+                "sema_other": {
+                    "base": 14772,
+                    "head": 12571
+                }
+            },
+            "total_us": {
+                "base": 58369,
+                "head": 51485
+            }
+        },
+        "phobos": {
+            "phases": {
+                "codegen": {
+                    "base": 317446,
+                    "head": 317115
+                },
+                "ctfe": {
+                    "base": 10554,
+                    "head": 10592
+                },
+                "dfa": {
+                    "base": 0,
+                    "head": 0
+                },
+                "inline": {
+                    "base": 3857,
+                    "head": 3732
+                },
+                "other": {
+                    "base": 0,
+                    "head": 0
+                },
+                "parse": {
+                    "base": 81448,
+                    "head": 80660
+                },
+                "sema1": {
+                    "base": 166964,
+                    "head": 168903
+                },
+                "sema2": {
+                    "base": 783,
+                    "head": 773
+                },
+                "sema3": {
+                    "base": 427220,
+                    "head": 426468
+                },
+                "sema_other": {
+                    "base": 174043,
+                    "head": 175544
+                }
+            },
+            "total_us": {
+                "base": 1182315,
+                "head": 1183787
+            }
+        }
+    }
+}
