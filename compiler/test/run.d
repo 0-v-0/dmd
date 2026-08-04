@@ -553,6 +553,17 @@ string[string] getEnvironment()
     env["DMD"] = dmdPath;
     env.setDefault("DMD_TEST_COVERAGE", "0");
 
+    // Inherit env vars set by the test harness (test.sh / test.ps1)
+    import std.process : environment;
+    foreach (key; ["REQUIRED_ARGS", "CC", "CXX"])
+    {
+        if (auto val = environment.get(key))
+            env[key] = val;
+    }
+    // PHOBOS_PATH: either from the environment or computed from the repo layout
+    env["PHOBOS_PATH"] = environment.get("PHOBOS_PATH", testPath(`..\..\..\phobos`));
+    // Ensure DFLAGS and LIB are set for the test tools
+
     const generatedSuffix = "generated/%s/%s/%s".format(os, build, model);
 
     version(Windows)
