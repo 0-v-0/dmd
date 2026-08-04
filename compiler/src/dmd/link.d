@@ -318,8 +318,11 @@ public int runLINK(bool verbose, ErrorSink eSink)
 
             // The UCRT-based MinGW fallback runtime links ucrtbase.lib via the object file's
             // /DEFAULTLIB directive; it also needs the VC runtime library.
+            // Some pre-built libraries (e.g., phobos64.lib from an older DMD installation)
+            // may be missing the /DEFAULTLIB:ucrtbase directive, so add it explicitly.
+            // Also add legacy_stdio_definitions.lib for sscanf/snprintf etc.
             if (driverParams.mscrtlib == "ucrtbase")
-                cmdbuf.writestring(" vcruntime140.lib");
+                cmdbuf.writestring(" vcruntime140.lib ucrtbase.lib legacy_stdio_definitions.lib");
 
             if (const(char)* lflags = vsopt.linkOptions(target.isX86_64))
             {

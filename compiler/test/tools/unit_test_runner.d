@@ -265,6 +265,7 @@ string[] buildCmdArgs(string runnerPath, string outputPath, const string[] testF
         "-Jsrc/dmd/res",
         "-Isrc",
         "-I" ~ unitTestDir,
+        "-I" ~ environment.get("PHOBOS_PATH", compilerRootDir.buildPath("..", "..", "phobos")),
         "-i",
         "-main",
         "-of" ~ outputPath,
