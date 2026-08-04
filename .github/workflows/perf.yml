@@ -1,16 +1,11 @@
 name: perf
 
 on:
-  pull_request:
-    paths-ignore:
-      - 'spec/**'
-      - 'changelog/**'
-      - '**/*.md'
   push:
-    branches: [master]
+    branches: [perf]
 
 concurrency:
-  group: perf-${{ github.event.pull_request.number || github.ref }}
+  group: perf-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -41,12 +36,15 @@ jobs:
         id: refs
         run: |
           set -uexo pipefail
-          HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-          git fetch --no-tags origin master
-          BASE_SHA="$(git merge-base "$HEAD_SHA" origin/master)"
+          HEAD_SHA="${{ github.sha }}"
+          PREV_SHA="$(git rev-parse --verify HEAD~1 2>/dev/null || echo '')"
+          if [ -z "$PREV_SHA" ]; then
+            git fetch --no-tags origin master
+            PREV_SHA="$(git merge-base HEAD origin/master)"
+          fi
           echo "head=$HEAD_SHA"     >> "$GITHUB_OUTPUT"
-          echo "base=$BASE_SHA"     >> "$GITHUB_OUTPUT"
-          echo "branch=${GITHUB_BASE_REF:-master}" >> "$GITHUB_OUTPUT"
+          echo "base=$PREV_SHA"     >> "$GITHUB_OUTPUT"
+          echo "branch=perf"        >> "$GITHUB_OUTPUT"
 
       - name: Install prerequisites
         run: |
@@ -69,7 +67,6 @@ jobs:
           profile="$RUNNER_TEMP/pgo/merged.data"
           mkdir -p "$RUNNER_TEMP/pgo"
 
-          # Check out a ref and build a plain dmd + phobos
           setup_ref() {
             local dir="$RUNNER_TEMP/$2/dmd"
             mkdir -p "$RUNNER_TEMP/$2"
@@ -80,7 +77,6 @@ jobs:
             ( cd "$dir/../phobos" && make -j$N MODEL=$MODEL )
           }
 
-          # Rebuild dmd against the shared profile so that base and head got identical PGO guidance.
           build_with_profile() {
             local dir="$RUNNER_TEMP/$1/dmd"
             ( cd "$dir" && generated/build HOST_DMD=$DMD MODEL=$MODEL \
@@ -91,7 +87,6 @@ jobs:
           setup_ref "${{ steps.refs.outputs.base }}" base
           setup_ref "${{ steps.refs.outputs.head }}" head
 
-          # Train PGO once, then reuse the profile for both refs.
           ( cd "$RUNNER_TEMP/base/dmd" && generated/build HOST_DMD=$DMD MODEL=$MODEL dmd-pgo -j$N --force )
           cp "$RUNNER_TEMP/base/dmd/$built/dmd_profdata/merged.data" "$profile"
           build_with_profile base
@@ -111,16 +106,20 @@ jobs:
             --head-phobos "$RUNNER_TEMP/head/phobos" \
             --base-sha "${{ steps.refs.outputs.base }}" \
             --head-sha "${{ steps.refs.outputs.head }}" \
-            --pr "${{ github.event.pull_request.number || 0 }}" \
             --host-dmd "$HOST_DMD" \
             --out "$GITHUB_WORKSPACE/results.json"
 
       - name: Show results
         run: cat "$GITHUB_WORKSPACE/results.json"
 
-      # perf-comment.yml picks this up and posts the comment.
-      - name: Upload results
-        if: github.event_name == 'pull_request'
+      - name: Archive results
+        run: |
+          mkdir -p docs/perf-baseline
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          cp "$GITHUB_WORKSPACE/results.json" "docs/perf-baseline/${TIMESTAMP}-results.json"
+          echo "Results archived to docs/perf-baseline/${TIMESTAMP}-results.json"
+
+      - name: Upload results artifact
         uses: actions/upload-artifact@v4
         with:
           name: perf-results
