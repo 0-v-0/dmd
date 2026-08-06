@@ -639,31 +639,18 @@ class TypeInfo
          */
         if (this is ti)
             return true;
-        return ti && typeid(this).name == typeid(ti).name;
+        return ti && this.toString() == ti.toString();
     }
 
     @system unittest
     {
         auto anotherObj = new Object();
 
-        class _TypeInfo_Dummy_A : TypeInfo
-        {
-            override string toString() const @safe nothrow { return "same"; }
-        }
-
-        class _TypeInfo_Dummy_B : TypeInfo
-        {
-            override string toString() const @safe nothrow { return "same"; }
-        }
-
-        auto dummyA1 = new _TypeInfo_Dummy_A();
-        auto dummyA2 = new _TypeInfo_Dummy_A();
-        auto dummyB = new _TypeInfo_Dummy_B();
-
         assert(typeid(void).opEquals(typeid(void)));
         assert(typeid(void) != anotherObj); // calling .opEquals here directly is a type mismatch
-        assert(dummyA1.opEquals(dummyA2));
-        assert(!dummyA1.opEquals(dummyB));
+        assert(!typeid(int).opEquals(typeid(double)));
+        assert(typeid(int[3]) == typeid(int[3]));
+        assert(typeid(void delegate()) != typeid(void delegate(int)));
     }
 
     /**
