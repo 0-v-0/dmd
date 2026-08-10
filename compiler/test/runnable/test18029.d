@@ -1,7 +1,7 @@
 /*
 https://issues.dlang.org/show_bug.cgi?id=21778
 
-REQUIRED_ARGS: -m64 -release -checkaction=context
+REQUIRED_ARGS: -m64 -release -checkaction=context -d
 */
 
 extern (C) float getreal_rcx(cfloat z)
