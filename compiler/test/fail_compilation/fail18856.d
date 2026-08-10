@@ -1,8 +1,8 @@
 /*
 TEST_OUTPUT:
 ---
- fail_compilation/fail18856.d(14): Error: undefined identifier `std` in module `std.stdio`
- fail_compilation/fail18856.d(15): Error: undefined identifier `std` in module `std.array`
+fail_compilation/fail18856.d(14): Error: undefined identifier `std` in module `std.stdio`
+fail_compilation/fail18856.d(15): Error: undefined identifier `std` in module `std.array`
 ---
 */
 
