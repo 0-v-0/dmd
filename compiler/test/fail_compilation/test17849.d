@@ -1,8 +1,8 @@
 /*
 TEST_OUTPUT:
 ---
-fail_compilation/test17849.d(6): Error: function `test17849.S.tmp!((a) => n).tmp` need `this` to access member `n`
-fail_compilation/test17849.d(3):        called from here: `tmp()`
+fail_compilation/test17849.d(15): Error: function `test17849.S.tmp!((a) => n)` need `this` to access member `tmp`
+fail_compilation/test17849.d(12):        called from here: `tmp()`
 ---
 */
 
