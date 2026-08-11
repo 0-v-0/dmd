@@ -1276,7 +1276,7 @@ private bool checkReturnEscapeImpl(ref Scope sc, Expression e, bool refs, bool g
                 else
                 {
                     const(char)* msg = v.isParameter() ?
-                        "returning `%s` escapes a reference to parameter `%s`" :
+                        "returning `%s` escapes a reference to parameter `%s`, perhaps annotate with `return`" :
                         "returning `%s` escapes a reference to local variable `%s`";
                     if (!gag)
                         previewErrorFunc(sc.isDeprecated(), featureState)(e.loc, msg, e.toChars(), v.toChars());
