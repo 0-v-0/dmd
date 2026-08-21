@@ -13,4 +13,6 @@ extern(C++) void foo19685(const ref Container19685.Inner);
 
 // Inner is a struct, not a class, so it should be mangled with 'U' not 'V'
 // On Windows MSVC x64: 'U' = struct, 'V' = class
-static assert(foo19685.mangleof == "?foo19685@@YAXAEBUInner@Container19685@@@Z");
+// (the class/struct distinction only exists with MSVC C++ mangling)
+version (CppMangleMSVC)
+    static assert(foo19685.mangleof == "?foo19685@@YAXAEBUInner@Container19685@@@Z");
