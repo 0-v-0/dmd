@@ -35,6 +35,7 @@ import dmd.root.bitarray;
 import dmd.root.ctfloat;
 import dmd.root.port;
 import dmd.root.rmem;
+import dmd.root.utf : utf_codeLength, utf_encode;
 import dmd.tokens;
 import dmd.typesem;
 
@@ -1423,6 +1424,37 @@ UnionExp ctfeCat(Loc loc, Type type, Expression e1, Expression e2)
             dinteger_t v = es2e.toInteger();
             Port.valcpy(cast(char*)s + i * sz, v, sz);
         }
+        // Add terminating 0
+        memset(cast(char*)s + len * sz, 0, sz);
+        emplaceExp!(StringExp)(&ue, loc, s[0 .. len * sz], len, sz);
+        StringExp es = ue.exp().isStringExp();
+        es.committed = false;
+        es.type = type;
+        return ue;
+    }
+    if (e1.op == EXP.arrayLiteral && e2.op == EXP.int64 && t1.nextOf().toBasetype().ty.isSomeChar())
+    {
+        // [chars] ~ char => string (only valid for CTFE)
+        ArrayLiteralExp ale1 = e1.isArrayLiteralExp();
+        const sz = cast(ubyte)t1.nextOf().size();
+        dinteger_t v = e2.toInteger();
+        bool homoConcat = (sz == t2.size());
+        const len = ale1.length + (homoConcat ? 1 : utf_codeLength(sz, cast(dchar)v));
+        void* s = mem.xmalloc_noscan((len + 1) * sz);
+        foreach (size_t i; 0 .. ale1.length)
+        {
+            Expression es2e = ale1[i];
+            if (!es2e || es2e.op != EXP.int64)
+            {
+                emplaceExp!(CTFEExp)(&ue, EXP.cantExpression);
+                return ue;
+            }
+            Port.valcpy(cast(char*)s + i * sz, es2e.toInteger(), sz);
+        }
+        if (homoConcat)
+            Port.valcpy(cast(char*)s + sz * ale1.length, v, sz);
+        else
+            utf_encode(sz, cast(char*)s + sz * ale1.length, cast(dchar)v);
         // Add terminating 0
         memset(cast(char*)s + len * sz, 0, sz);
         emplaceExp!(StringExp)(&ue, loc, s[0 .. len * sz], len, sz);

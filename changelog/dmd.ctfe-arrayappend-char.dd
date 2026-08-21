@@ -1,0 +1,3 @@
+DMD compiler CTFE now correctly handles `string ~= dchar` (and `string ~= wchar`) when the string was initialized from a character array literal (e.g., `string r = ['x', 'q']`). Previously this produced a "cannot interpret `r ~= c` at compile time" error.
+
+This was [issue 18469](https://github.com/dlang/dmd/issues/18469).
