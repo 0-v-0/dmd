@@ -11997,6 +11997,33 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         if (auto ae = exp.e1.isArrayExp())
             markArrayExpModifiable(ae);
 
+        // Check for opIndexUnary on the container type before binSemantic
+        // converts the ArrayExp to an opIndex() call.
+        // See: https://issues.dlang.org/show_bug.cgi?id=5044
+        if (exp.e1.op == EXP.array)
+        {
+            auto ae2 = exp.e1.isArrayExp();
+            if (!ae2.e1.type)
+                ae2.e1 = ae2.e1.expressionSemantic(sc).arrayFuncConv(sc);
+            if (auto ad = isAggregate(ae2.e1.type))
+            {
+                if (search_function(ad, Id.opIndexUnary))
+                {
+                    // Rewrite c[0]++ as: auto tmp = c[0]; ++c[0]; tmp
+                    auto tmp = copyToTemp(STC.none, "__pitmp", exp.e1);
+                    Expression ea = new DeclarationExp(exp.loc, tmp);
+                    Expression eb = exp.e1.syntaxCopy();
+                    eb = new PreExp(exp.op == EXP.plusPlus ? EXP.prePlusPlus : EXP.preMinusMinus, exp.loc, eb);
+                    Expression ec = new VarExp(exp.loc, tmp);
+                    Expression e = new CommaExp(exp.loc, ea, eb);
+                    e = new CommaExp(exp.loc, e, ec);
+                    e = e.expressionSemantic(sc);
+                    result = e;
+                    return;
+                }
+            }
+        }
+
         if (Expression ex = binSemantic(exp, sc))
         {
             result = ex;

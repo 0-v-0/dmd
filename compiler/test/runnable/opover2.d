@@ -336,6 +336,8 @@ void test8()
     -a[];
     -a[5 .. 6];
     --a[3];
+    a[3]++;  // https://issues.dlang.org/show_bug.cgi?id=5044
+    a[3]--;  // post-decrement should also call opIndexUnary
 }
 
 /**************************************/
