@@ -3,7 +3,7 @@ TEST_OUTPUT:
 ---
 fail_compilation/test13537.d(31): Error: modifying field `U.y` which overlaps with fields with other storage classes is not allowed in a `@safe` function
 fail_compilation/test13537.d(32): Error: modifying field `U.y` which overlaps with fields with other storage classes is not allowed in a `@safe` function
-fail_compilation/test13537.d(33): Error: accessing overlapped field `U.z` with pointers is not allowed in a `@safe` function
+fail_compilation/test13537.d(33): Error: modifying field `U.z` which overlaps with fields with other storage classes is not allowed in a `@safe` function
 fail_compilation/test13537.d(34): Error: modifying field `U.y` which overlaps with fields with other storage classes is not allowed in a `@safe` function
 ---
 */

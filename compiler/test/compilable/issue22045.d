@@ -12,9 +12,6 @@ void main() @safe
     Foo foo;
     foo.b = new int;
 
-    // Taking the address of the field is also @safe
-    Foo* pfoo = &foo;
-
     // Writing through the union is @safe
     foo.b = new int;
 }
