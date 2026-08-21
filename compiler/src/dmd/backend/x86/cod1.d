@@ -4297,6 +4297,8 @@ targ_size_t paramsize(elem* e, tym_t tyf)
         szb = size(tym);
     else if (tym == TYstruct || tym == TYarray)
         szb = type_parameterSize(e.ET, tyf);
+    else if (tym == TYnoreturn)
+        szb = _tysize[TYnptr]; // treat noreturn as pointer-sized
     else
     {
         printf("%s\n", tym_str(tym));

@@ -3943,6 +3943,11 @@ public bool throwSemantic(Loc loc, ref Expression exp, Scope* sc)
     }
     checkThrowEscape(*sc, exp, false);
 
+    // The bottom type `noreturn` is convertible to any type, including `Throwable`,
+    // so throwing it should be allowed (it will crash at runtime if reached).
+    if (exp.type.toBasetype().ty == Tnoreturn)
+        return true;
+
     ClassDeclaration cd = exp.type.toBasetype().isClassHandle();
     if (!cd || ((cd != ClassDeclaration.throwable) && !ClassDeclaration.throwable.isBaseOf(cd, null)))
     {

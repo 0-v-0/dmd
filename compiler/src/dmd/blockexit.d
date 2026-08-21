@@ -518,6 +518,9 @@ int blockExit(Statement s, FuncDeclaration func, ErrorSink eSink)
 BE checkThrow(Loc loc, Expression exp, FuncDeclaration func, ErrorSink eSink)
 {
     Type t = exp.type.toBasetype();
+    // The bottom type `noreturn` can be thrown; it is convertible to any Throwable.
+    if (t.ty == Tnoreturn)
+        return BE.errthrow;
     ClassDeclaration cd = t.isClassHandle();
     assert(cd);
 
