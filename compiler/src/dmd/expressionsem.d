@@ -14273,6 +14273,22 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 exp.type = tb1.arrayOf();
                 goto L1elem;
             }
+            // https://github.com/dlang/dmd/issues/18555
+            // If e2 is an uncommitted string literal and e1 is a char type
+            // that doesn't narrow to e2's element type, try converting the
+            // string literal to an array of e1's type instead. String literals
+            // are immutable, so use immutable(tb1)[] for the target type.
+            if (exp.e2.op == EXP.string_ && !(cast(StringExp)exp.e2).committed &&
+                tb1.toBasetype().ty.isSomeChar)
+            {
+                Type t1 = tb1.immutableOf().arrayOf();
+                if (exp.e2.implicitConvTo(t1))
+                {
+                    exp.e2 = exp.e2.implicitCastTo(sc, t1);
+                    exp.type = t1;
+                    goto L1elem;
+                }
+            }
             if (exp.e1.implicitConvTo(tb2next) >= MATCH.convert)
             {
                 exp.e1 = exp.e1.implicitCastTo(sc, tb2next);

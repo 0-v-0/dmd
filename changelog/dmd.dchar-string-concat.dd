@@ -1,0 +1,3 @@
+DMD compiler now allows concatenation of a wider character type (dchar or wchar) with a string literal, e.g. dchar c = 'A'; auto s = c ~ "bcd". Previously this only worked when the right-hand side was already typed as dstring/wstring; string literals were rejected because they default to string (char[]).
+
+This was issue 18555 (https://github.com/dlang/dmd/issues/18555).
