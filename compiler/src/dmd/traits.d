@@ -1880,7 +1880,11 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
          * compile without error
          */
         if (!dim)
-            return False();
+        {
+            // Return a new IntegerExp with the traits expression's location
+            // so that error messages (e.g. 'has no effect') include it.
+            return new IntegerExp(e.loc, 0, Type.tbool);
+        }
 
         foreach (o; *e.args)
         {
