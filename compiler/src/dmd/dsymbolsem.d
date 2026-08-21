@@ -100,6 +100,9 @@ Scope* newScope(AggregateDeclaration _this, Scope* sc)
         sc2.aligndecl = null;
         sc2.userAttribDecl = null;
         sc2.namespace = null;
+        // Inner types should not inherit the enclosing aggregate's
+        // extern(C++, class) / extern(C++, struct) mangling override.
+        sc2.cppmangle = CPPMANGLE.def;
         return sc2;
     }
 
