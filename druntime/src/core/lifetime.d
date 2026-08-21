@@ -2213,6 +2213,20 @@ private enum bool hasContextPointers(T) = {
     static assert(!hasContextPointers!U);
 }
 
+// CTFE-compatible equivalent of wipe(): resets every field to its init value
+// recursively, because wipe() relies on reinterpret casts and the init symbol,
+// which cannot be interpreted during CTFE.
+private void ctfeWipe(T)(return scope ref T source) @trusted
+{
+    static if (is(T == struct) || __traits(isStaticArray, T))
+    {
+        foreach (i, ref f; source.tupleof)
+            ctfeWipe(f);
+    }
+    else
+        source = T.init;
+}
+
 // target must be first-parameter, because in void-functions DMD + dip1000 allows it to take the place of a return-scope
 private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
 {
@@ -2236,9 +2250,10 @@ private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
         {
             if (__ctfe)
             {
-                // memcpy cannot be interpreted at CTFE, use a reinterpret copy
+                // memcpy cannot be interpreted at CTFE, move field-by-field instead
                 // See: https://issues.dlang.org/show_bug.cgi?id=21542
-                (() @trusted { *cast(ubyte[T.sizeof]*) &target = *cast(ubyte[T.sizeof]*) &source; })();
+                foreach (i, ref f; target.tupleof)
+                    moveEmplaceImpl(f, source.tupleof[i]);
             }
             else
             {
@@ -2258,7 +2273,13 @@ private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
         {
             // If there are members that are nested structs, we must take care
             // not to erase any context pointers, so we might have to recurse
-            static if (__traits(isZeroInit, T))
+            if (__ctfe)
+            {
+                // wipe() uses reinterpret casts and the init symbol, which are
+                // not available at CTFE; reset field-by-field instead
+                ctfeWipe(source);
+            }
+            else static if (__traits(isZeroInit, T))
                 wipe(source);
             else
                 wipe(source, ref () @trusted { return *cast(immutable(T)*) __traits(initSymbol, T).ptr; } ());
@@ -2273,11 +2294,21 @@ private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
                        !hasElaborateCopyConstructor!T)
             {
                 // Single blit if no special per-instance handling is required
-                () @trusted
+                if (__ctfe)
                 {
-                    assert(source.ptr !is target.ptr, "source and target must not be identical");
-                    *cast(ubyte[T.sizeof]*) &target = *cast(ubyte[T.sizeof]*) &source;
-                } ();
+                    // reinterpret casts cannot be interpreted at CTFE,
+                    // move element-by-element instead
+                    foreach (i, ref f; target)
+                        moveEmplaceImpl(f, source[i]);
+                }
+                else
+                {
+                    () @trusted
+                    {
+                        assert(source.ptr !is target.ptr, "source and target must not be identical");
+                        *cast(ubyte[T.sizeof]*) &target = *cast(ubyte[T.sizeof]*) &source;
+                    } ();
+                }
             }
             else
             {
