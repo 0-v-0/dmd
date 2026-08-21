@@ -17955,8 +17955,19 @@ bool checkAddressable(Expression e, Scope* sc, const(char)* action)
             case EXP.address:
             case EXP.array:
             case EXP.cast_:
+            {
+                // When a CastExp is used as an lvalue (e.g. indexed through),
+                // apply the same @safe deprecation as CastExp.toLvalue().
+                if (auto ce = ex.isCastExp())
+                {
+                    if (ce.isLvalue() && !ce.trusted && !ce.e1.type.pointerTo().implicitConvTo(ce.to.pointerTo()))
+                        sc.setUnsafePreview(FeatureState.default_, false, e.loc,
+                            "using the result of a cast from `%s` to `%s` as an lvalue",
+                            ce.e1.type, ce.to);
+                }
                 ex = ex.isUnaExp().e1;
                 continue;
+            }
 
             case EXP.variable:
                 if (sc && sc.inCfile)
