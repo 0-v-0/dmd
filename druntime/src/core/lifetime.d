@@ -1591,7 +1591,7 @@ template forward(args...)
         // the inferred inout return type requires an inout parameter.
         // Fall back to alias (pass by reference).
         // See: https://issues.dlang.org/show_bug.cgi?id=22907
-        else static if (is(typeof(arg) == inout U, U))
+        else static if (!__traits(compiles, () { return move(arg); }))
             alias fwd = arg;
         // (r)value
         else
