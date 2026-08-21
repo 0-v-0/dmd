@@ -12009,16 +12009,12 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             {
                 if (search_function(ad, Id.opIndexUnary))
                 {
-                    // Rewrite c[0]++ as: auto tmp = c[0]; ++c[0]; tmp
-                    auto tmp = copyToTemp(STC.none, "__pitmp", exp.e1);
-                    Expression ea = new DeclarationExp(exp.loc, tmp);
+                    // Rewrite c[0]++ as: ++c[0]
+                    // (which then resolves to `c.opIndexUnary!"++"(0)`)
+                    // See: https://issues.dlang.org/show_bug.cgi?id=5044
                     Expression eb = exp.e1.syntaxCopy();
                     eb = new PreExp(exp.op == EXP.plusPlus ? EXP.prePlusPlus : EXP.preMinusMinus, exp.loc, eb);
-                    Expression ec = new VarExp(exp.loc, tmp);
-                    Expression e = new CommaExp(exp.loc, ea, eb);
-                    e = new CommaExp(exp.loc, e, ec);
-                    e = e.expressionSemantic(sc);
-                    result = e;
+                    result = eb.expressionSemantic(sc);
                     return;
                 }
             }
