@@ -1587,6 +1587,12 @@ template forward(args...)
                    __traits(isLazy, arg) ||
                    !is(typeof(move(arg))))
             alias fwd = arg;
+        // inout parameters can't be moved via a nested function because
+        // the inferred inout return type requires an inout parameter.
+        // Fall back to alias (pass by reference).
+        // See: https://issues.dlang.org/show_bug.cgi?id=22907
+        else static if (is(typeof(arg) == inout U, U))
+            alias fwd = arg;
         // (r)value
         else
             @property auto fwd()
@@ -1626,6 +1632,21 @@ template forward(args...)
 
     assert(baz(1) == 2);
     assert(baz(i) == 2);
+}
+
+// https://issues.dlang.org/show_bug.cgi?id=22907
+@safe unittest
+{
+    inout(int)[] forwardInout(inout(int)[] a)
+    {
+        return forward!a;
+    }
+    int[] arr = [1, 2, 3];
+    auto r = forwardInout(arr);
+    assert(r == [1, 2, 3]);
+    immutable(int)[] iarr = [4, 5, 6];
+    auto r2 = forwardInout(iarr);
+    assert(r2 == [4, 5, 6]);
 }
 
 ///
