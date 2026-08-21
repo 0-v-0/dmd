@@ -88,8 +88,11 @@ bool checkUnsafeAccess(Scope* sc, Expression e, bool readonly, bool printmsg)
         ad.determineSize(ad.loc);
 
     const hasPointers = v.type.hasPointers();
-    if (hasPointers)
+    if (hasPointers && readonly)
     {
+        // Writing to an overlapped pointer field is @safe (storing a valid value),
+        // only reading is @system (could get a garbage pointer).
+        // See: https://issues.dlang.org/show_bug.cgi?id=22045
         if (v.overlapped)
         {
             if (sc.func.isSafeBypassingInference() && sc.setUnsafe(!printmsg, e.loc,
@@ -125,7 +128,7 @@ bool checkUnsafeAccess(Scope* sc, Expression e, bool readonly, bool printmsg)
     // @@@DEPRECATED_2.119@@@
     // https://issues.dlang.org/show_bug.cgi?id=24477
     // Should probably be turned into an error in a new edition
-    if (v.type.hasUnsafeBitpatterns() && v.overlapped && sc.setUnsafePreview(
+    if (readonly && v.type.hasUnsafeBitpatterns() && v.overlapped && sc.setUnsafePreview(
         FeatureState.default_, !printmsg, e.loc,
         "accessing overlapped field `%s.%s` with unsafe bit patterns", ad, v)
     )
