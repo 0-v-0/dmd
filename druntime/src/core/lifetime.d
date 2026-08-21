@@ -2029,6 +2029,16 @@ private T trustedMoveImpl(T)(return scope ref T source) @trusted
         assert(s21 == s22);
     });
 
+    // https://issues.dlang.org/show_bug.cgi?id=21542
+    // core.lifetime.move should work at CTFE for non-copyable structs
+    static struct NoCopy { @disable this(this); int a = 42; }
+    assertCTFEable!(() {
+        NoCopy x;
+        x.a = 99;
+        NoCopy y = move(x);
+        assert(y.a == 99);
+    });
+
     // Issue 5661 test(1)
     static struct S3
     {
@@ -2224,8 +2234,17 @@ private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
 
         static if (hasElaborateAssign!T || !isAssignable!T)
         {
-            import core.stdc.string : memcpy;
-            () @trusted { memcpy(&target, &source, T.sizeof); }();
+            if (__ctfe)
+            {
+                // memcpy cannot be interpreted at CTFE, use a reinterpret copy
+                // See: https://issues.dlang.org/show_bug.cgi?id=21542
+                (() @trusted { *cast(ubyte[T.sizeof]*) &target = *cast(ubyte[T.sizeof]*) &source; })();
+            }
+            else
+            {
+                import core.stdc.string : memcpy;
+                () @trusted { memcpy(&target, &source, T.sizeof); }();
+            }
         }
         else
             target = source;
