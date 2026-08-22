@@ -498,7 +498,10 @@ Tarr _d_newarraymTX(Tarr : U[], T, U)(scope size_t[] dims, bool isShared=false) 
     }
 
     enum expectedDims = countDimensions!Tarr;
-    assert(dims.length == expectedDims);
+    // Fewer dimensions than the type's rank are legal (the remaining
+    // sub-arrays stay null, e.g. `new int[][][](2, 2)`); more dimensions
+    // would be memory-unsafe (see issue 17213).
+    assert(dims.length <= expectedDims);
 
     alias UnqT = Unqual!(T);
 
