@@ -628,18 +628,38 @@ class TypeInfo
 
     override bool opEquals(Object o)
     {
-        return opEquals(cast(TypeInfo) o);
+        if (this is o)
+            return true;
+        auto ti = cast(const TypeInfo) o;
+        return ti !is null && this.toString() == ti.toString();
     }
 
     bool opEquals(const TypeInfo ti) @safe nothrow const
     {
         /* TypeInfo instances are singletons, but duplicates can exist
          * across DLL's. Therefore, comparing for a name match is
-         * sufficient.
+         * sufficient for the runtime type of the TypeInfo.
          */
         if (this is ti)
             return true;
-        return ti && typeid(this).name == typeid(ti).name;
+        if (!ti || typeid(this).name != typeid(ti).name)
+            return false;
+        /* Delegate to the structural comparison implemented by most
+         * subclasses, which avoids the allocations of toString.
+         * Custom subclasses without their own opEquals override fall
+         * back to comparing the string representations.
+         */
+        return () @trusted nothrow
+        {
+            try
+            {
+                return (cast() this).opEquals(cast(Object) cast() ti);
+            }
+            catch (Throwable)
+            {
+                return false;
+            }
+        }();
     }
 
     @system unittest
@@ -666,6 +686,21 @@ class TypeInfo
         assert(typeid(void) != anotherObj); // calling .opEquals here directly is a type mismatch
         assert(dummyA1.opEquals(cast(const TypeInfo) dummyA2));
         assert(!dummyA1.opEquals(cast(const TypeInfo) dummyB));
+
+        // same TypeInfo subclass but different payload must not compare equal
+        class C17254
+        {
+            void a() {}
+            void b(int z, short c) {}
+            void c(int z, short d) {}
+        }
+        auto z = new C17254();
+        TypeInfo da = typeid(typeof(&z.a));
+        TypeInfo db = typeid(typeof(&z.b));
+        TypeInfo dc = typeid(typeof(&z.c));
+        assert(da.opEquals(cast(const TypeInfo) da));
+        assert(!da.opEquals(cast(const TypeInfo) db));
+        assert(db.opEquals(cast(const TypeInfo) dc));
     }
 
     /**
