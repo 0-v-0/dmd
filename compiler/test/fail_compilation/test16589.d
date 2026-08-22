@@ -10,8 +10,8 @@ fail_compilation/test16589.d(37): Error: escaping a reference to parameter `s` b
 fail_compilation/test16589.d(35):        perhaps annotate the parameter with `return`
 fail_compilation/test16589.d(42): Error: escaping a reference to parameter `s` by returning `&s` is not allowed in a `@safe` function
 fail_compilation/test16589.d(40):        perhaps annotate the parameter with `return`
-fail_compilation/test16589.d(47): Error: returning `&s.data` escapes a reference to parameter `s`
-fail_compilation/test16589.d(52): Error: returning `& s` escapes a reference to parameter `s`
+fail_compilation/test16589.d(47): Error: returning `&s.data` escapes a reference to parameter `s`, perhaps annotate with `return`
+fail_compilation/test16589.d(52): Error: returning `& s` escapes a reference to parameter `s`, perhaps annotate with `return`
 ---
 */
 

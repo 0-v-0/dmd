@@ -304,7 +304,7 @@ struct S7
 TEST_OUTPUT:
 ---
 fail_compilation/retscope.d(316): Error: scope parameter `p` may not be returned
-fail_compilation/retscope.d(317): Error: returning `p[]` escapes a reference to parameter `p`
+fail_compilation/retscope.d(317): Error: returning `p[]` escapes a reference to parameter `p`, perhaps annotate with `return`
 fail_compilation/retscope.d(320): Error: scope parameter `p` may not be returned
 ---
 */
