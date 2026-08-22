@@ -2,6 +2,7 @@
 https://issues.dlang.org/show_bug.cgi?id=21778
 
 REQUIRED_ARGS: -m64 -release -checkaction=context -d
+// DISABLED: win32 linux32 freebsd32 osx32 openbsd32 netbsd32 dragonflybsd32 hurd32
 */
 
 extern (C) float getreal_rcx(cfloat z)
