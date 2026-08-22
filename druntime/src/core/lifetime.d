@@ -2218,7 +2218,12 @@ private enum bool hasContextPointers(T) = {
 // which cannot be interpreted during CTFE.
 private void ctfeWipe(T)(return scope ref T source) @trusted
 {
-    static if (is(T == struct) || __traits(isStaticArray, T))
+    static if (is(T == const) || is(T == immutable))
+    {
+        // A const/immutable field cannot be reset; leave its value. Only
+        // instantiating `source = T.init` for such a T would not compile.
+    }
+    else static if (is(T == struct) || __traits(isStaticArray, T))
     {
         foreach (i, ref f; source.tupleof)
             ctfeWipe(f);
@@ -2253,7 +2258,15 @@ private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
                 // memcpy cannot be interpreted at CTFE, move field-by-field instead
                 // See: https://issues.dlang.org/show_bug.cgi?id=21542
                 foreach (i, ref f; target.tupleof)
-                    moveEmplaceImpl(f, source.tupleof[i]);
+                {
+                    static if (!is(typeof(f) == const) && !is(typeof(f) == immutable))
+                        moveEmplaceImpl(f, source.tupleof[i]);
+                    // else: a const/immutable field cannot be assigned at CTFE
+                    // (and instantiating its move would not even compile, since
+                    // moveEmplaceImpl falls back to `target = source` for it);
+                    // the field keeps its previous value, as before when the
+                    // memcpy path failed to interpret during CTFE.
+                }
             }
             else
             {
@@ -2298,8 +2311,14 @@ private void moveEmplaceImpl(T)(scope ref T target, return scope ref T source)
                 {
                     // reinterpret casts cannot be interpreted at CTFE,
                     // move element-by-element instead
-                    foreach (i, ref f; target)
-                        moveEmplaceImpl(f, source[i]);
+                    static if (!is(typeof(target[0]) == const) && !is(typeof(target[0]) == immutable))
+                    {
+                        foreach (i, ref f; target)
+                            moveEmplaceImpl(f, source[i]);
+                    }
+                    // else: const/immutable elements cannot be assigned at CTFE;
+                    // keep their previous value (as before, when the blit below
+                    // failed to interpret during CTFE).
                 }
                 else
                 {
