@@ -5685,7 +5685,15 @@ void testsqrt_to_ulong()
     auto u = cast(ulong) sqrt(d);
     auto s = cast(long) sqrt(d);
     assert(u == cast(ulong) s);
-    assert(u == 94906267UL);
+    // The exact value depends on the precision sqrt is computed in:
+    // 64-bit targets use SSE2 doubles (sqrt == 94906267.0 exactly), while
+    // 32-bit targets evaluate sqrt in the x87 80-bit format
+    // (94906266.9999...), which consistently truncates to 94906266 for
+    // both the signed and the unsigned cast.
+    version (D_LP64)
+        assert(u == 94906267UL);
+    else
+        assert(u == 94906266UL);
 }
 
 /***************************************************/
