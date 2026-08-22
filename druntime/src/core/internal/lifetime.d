@@ -85,6 +85,23 @@ if (is(UT == core.internal.traits.Unqual!UT))
 }
 
 /+
+dmd's `__traits(isZeroInit)` wrongly reports static arrays of enums whose
+first member is not `0` (e.g. `enum E : int { a = 7 }`, `E[4]`) as
+zero-initialized, because it looks at the element's base type. Such arrays
+must not take the memset path; they need element-wise initialization so that
+each element receives the enum's `.init` instead of `E.init` (= 0).
++/
+private template hasNonZeroInitEnumElement(T)
+{
+    static if (is(T == enum))
+        enum hasNonZeroInitEnumElement = !__traits(isZeroInit, T);
+    else static if (__traits(isStaticArray, T))
+        enum hasNonZeroInitEnumElement = hasNonZeroInitEnumElement!(typeof(T.init[0]));
+    else
+        enum hasNonZeroInitEnumElement = false;
+}
+
+/+
 Emplaces T.init.
 In contrast to `emplaceRef(chunk)`, there are no checks for disabled default
 constructors etc.
@@ -101,10 +118,13 @@ if (!is(T == const) && !is(T == immutable) && !is(T == inout))
         // ordinary shared write that `-preview=nosharedaccess` rejects.
         emplaceInitializer(*cast(U*) &chunk);
     }
-    else static if (__traits(isZeroInit, T))
+    else static if (__traits(isZeroInit, T) && !hasNonZeroInitEnumElement!T)
     {
         // For zero-initialized types (e.g. `int`, pointers, basic floats) a
         // plain memset is cheapest and avoids emitting an init symbol.
+        // Static arrays of enums with a non-zero `.init` are excluded: dmd
+        // reports them as zero-initialized (base-type rule), so they must be
+        // initialized element-by-element further below instead.
         import core.stdc.string : memset;
         memset(cast(void*) &chunk, 0, T.sizeof);
     }
