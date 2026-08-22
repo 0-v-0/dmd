@@ -591,6 +591,8 @@ unittest
 // https://issues.dlang.org/show_bug.cgi?id=24514
 @system unittest
 {
+    import core.exception : AssertError;
+
     bool asserted;
     try
     {
