@@ -1777,7 +1777,7 @@ private final class DsymbolPrettyPrintVisitor : Visitor
                 {
                     if (auto ei = vd._init.isExpInitializer())
                     {
-                        ei.exp.expressionToBuffer(buf, hgs);
+                        expressionToBuffer(ei.exp, *buf, *hgs);
                         buf.put(';');
                         buf.writenl();
                         return;
