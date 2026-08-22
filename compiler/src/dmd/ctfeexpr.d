@@ -326,6 +326,7 @@ UnionExp copyLiteral(Expression e)
     case EXP.void_:
     case EXP.vector:
     case EXP.typeid_:
+    case EXP.type:
         // Simple value types
         // Keep e1 for DelegateExp and DotVarExp
         emplaceExp!(UnionExp)(&ue, e);
