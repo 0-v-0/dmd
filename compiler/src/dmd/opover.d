@@ -30,6 +30,7 @@ import dmd.expression;
 import dmd.expressionsem;
 import dmd.func;
 import dmd.funcsem;
+import dmd.globals;
 import dmd.hdrgen;
 import dmd.id;
 import dmd.identifier;
@@ -1032,6 +1033,36 @@ Expression opOverloadBinaryAssign(BinAssignExp e, Scope* sc, Type[2] aliasThisSt
 }
 
 /**
+ * Returns: true iff both functions were instantiated (directly or through an
+ * enclosing aggregate) from the same template declaration.
+ */
+private bool fromSameTemplate(FuncDeclaration f1, FuncDeclaration f2)
+{
+    /* Instantiating an aggregate template copies its member declarations, so
+     * the innermost enclosing TemplateInstance of two instantiated functions
+     * generally compares distinct even when the source declaration is the
+     * same. Use the outermost enclosing template declaration as the stable
+     * identity instead; it is shared between instantiations.
+     */
+    TemplateDeclaration originOf(FuncDeclaration f)
+    {
+        TemplateDeclaration outermost = null;
+        for (Dsymbol p = f.parent; p; p = p.parent)
+        {
+            if (auto ti = p.isTemplateInstance())
+            {
+                if (auto td = ti.tempdecl.isTemplateDeclaration())
+                    outermost = td;
+            }
+        }
+        return outermost;
+    }
+    const o1 = originOf(f1);
+    const o2 = originOf(f2);
+    return o1 !is null && o1 is o2;
+}
+
+/**
 Given symbols `s` and `s_r`, try to instantiate `e.e1.s!tiargs(e.e2)` and `e.e2.s_r!tiargs(e.e1)`,
 and return the one with the best match level.
 
@@ -1065,13 +1096,27 @@ private Expression pickBestBinaryOverload(Scope* sc, Objects* tiargs, Dsymbol s,
             return ErrorExp.get();
     }
     FuncDeclaration lastf = m.lastf;
+    MATCH lastm = m.last;
     int count = m.count;
+    MatchAccumulator mr;
     if (s_r)
     {
         functionResolve(m, s_r, e.loc, sc, tiargs, e.e2.type, ArgumentList(args1), null);
         if (m.lastf && (m.lastf.errors || m.lastf.hasSemantic3Errors))
             return ErrorExp.get();
+        if (e.isEqualExp())
+        {
+            /* Also resolve the reverse direction into a separate accumulator,
+             * so the two competing opEquals functions can be compared
+             * according to the specification. Run gagged to suppress
+             * duplicate diagnostics; the first resolve already reported them.
+             */
+            const olderrors = global.startGagging();
+            functionResolve(mr, s_r, e.loc, sc, tiargs, e.e2.type, ArgumentList(args1), null);
+            global.endGagging(olderrors);
+        }
     }
+    bool ambiguityReported = false;
     if (m.count > 1)
     {
         /* The following if says "not ambiguous" if there's one match
@@ -1091,6 +1136,7 @@ private Expression pickBestBinaryOverload(Scope* sc, Objects* tiargs, Dsymbol s,
             error(e.loc, "overloads `%s` and `%s` both match argument list for `%s`", m.lastf.type.toErrMsg(), m.nextf.type.toErrMsg(), m.lastf.toErrMsg());
             errorSupplemental(m.lastf.loc, "`%s` is declared here", m.lastf.toPrettyChars());
             errorSupplemental(m.nextf.loc, "`%s` is declared here", m.nextf.toPrettyChars());
+            ambiguityReported = true;
         }
     }
     else if (m.last == MATCH.nomatch)
@@ -1098,6 +1144,32 @@ private Expression pickBestBinaryOverload(Scope* sc, Objects* tiargs, Dsymbol s,
         if (tiargs)
             return null;
         m.lastf = null;
+    }
+
+    /* https://dlang.org/spec/operatoroverloading.html#equals
+     * For `==`/`!=`, the expressions a.opEquals(b) and b.opEquals(a) are both
+     * tried. If they resolve to the same opEquals function, the expression is
+     * rewritten to a.opEquals(b). If one is a better match than the other, or
+     * one compiles and the other does not, the first is selected. Otherwise,
+     * an error results. A better match is already selected by the code above;
+     * what is left to detect here is two different, equally good matches.
+     */
+    if (!ambiguityReported && e.isEqualExp() && lastf && mr.lastf && lastf !is mr.lastf && lastm == mr.last)
+    {
+        /* Both directions resolved to a different opEquals function with
+         * neither one being the better match. This is an error per the spec,
+         * unless both functions were instantiated from the same template
+         * declaration (e.g. std.typecons.Tuple), in which case they are
+         * considered the same opEquals and the left-hand side is preferred.
+         */
+        if (!fromSameTemplate(lastf, mr.lastf))
+        {
+            error(e.loc, "overloads `%s` and `%s` both match argument list for `%s`",
+                lastf.toPrettyChars(), mr.lastf.toPrettyChars(), EXPtoString(e.op).ptr);
+            errorSupplemental(lastf.loc, "`%s` is declared here", lastf.toPrettyChars());
+            errorSupplemental(mr.lastf.loc, "`%s` is declared here", mr.lastf.toPrettyChars());
+            return ErrorExp.get();
+        }
     }
 
     if (lastf && m.lastf == lastf || !s_r && m.last == MATCH.nomatch)
