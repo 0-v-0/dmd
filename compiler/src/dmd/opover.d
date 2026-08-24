@@ -30,7 +30,6 @@ import dmd.expression;
 import dmd.expressionsem;
 import dmd.func;
 import dmd.funcsem;
-import dmd.globals;
 import dmd.hdrgen;
 import dmd.id;
 import dmd.identifier;
@@ -1098,6 +1097,7 @@ private Expression pickBestBinaryOverload(Scope* sc, Objects* tiargs, Dsymbol s,
     FuncDeclaration lastf = m.lastf;
     MATCH lastm = m.last;
     int count = m.count;
+    FuncDeclaration savedNextf = m.nextf;
     MatchAccumulator mr;
     if (s_r)
     {
@@ -1106,14 +1106,26 @@ private Expression pickBestBinaryOverload(Scope* sc, Objects* tiargs, Dsymbol s,
             return ErrorExp.get();
         if (e.isEqualExp())
         {
-            /* Also resolve the reverse direction into a separate accumulator,
-             * so the two competing opEquals functions can be compared
-             * according to the specification. Run gagged to suppress
-             * duplicate diagnostics; the first resolve already reported them.
+            /* Extract the reverse direction's best match from the combined
+             * accumulator state, so the two competing opEquals functions can be
+             * compared according to the specification. A second functionResolve
+             * call is deliberately avoided: even when gagged, it triggers
+             * template instantiation and semantic3 with persistent side effects
+             * that can corrupt later compilation (e.g. std.typecons.Nullable).
              */
-            const olderrors = global.startGagging();
-            functionResolve(mr, s_r, e.loc, sc, tiargs, e.e2.type, ArgumentList(args1), null);
-            global.endGagging(olderrors);
+            if (m.lastf !is lastf)
+            {
+                // Reverse found a better match
+                mr.lastf = m.lastf;
+                mr.last = m.last;
+            }
+            else if (m.count > count && m.nextf && m.nextf !is savedNextf)
+            {
+                // Reverse found an equal match; m.nextf is the reverse function
+                mr.lastf = m.nextf;
+                mr.last = lastm;
+            }
+            // else: reverse was worse or no match; mr stays at default (nomatch)
         }
     }
     bool ambiguityReported = false;
