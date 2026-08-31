@@ -7056,6 +7056,25 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                 return;
             }
 
+            // https://issues.dlang.org/show_bug.cgi?id=17777
+            // Check type qualifiers when matching same type kind with
+            // different modifiers. Previously, is(Q == immutable(T!X), X)
+            // would incorrectly match mutable T!arg.
+            if (t.mod != tparam.mod)
+            {
+                if (wm && t.deduceWild(tparam, false))
+                {
+                    result = MATCH.constant;
+                    return;
+                }
+                if (MODimplicitConv(t.mod, tparam.mod))
+                {
+                    result = MATCH.constant;
+                    return;
+                }
+                goto Lnomatch;
+            }
+
         Lexact:
             result = MATCH.exact;
             return;
@@ -7353,6 +7372,7 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                 if (ti && ti.toAlias() == t.sym)
                 {
                     auto tx = new TypeInstance(Loc.initial, ti);
+                    tx.mod = t.mod;
                     auto m = deduceType(tx, sc, tparam, *parameters, *dedtypes, wm);
                     // if we have a no match we still need to check alias this
                     if (m != MATCH.nomatch)
@@ -7426,6 +7446,7 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                 if (ti && ti.toAlias() == t.sym)
                 {
                     auto tx = new TypeInstance(Loc.initial, ti);
+                    tx.mod = t.mod;
                     MATCH m = deduceType(tx, sc, tparam, *parameters, *dedtypes, wm);
                     // Even if the match fails, there is still a chance it could match
                     // a base class.
