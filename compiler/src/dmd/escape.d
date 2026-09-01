@@ -2078,6 +2078,38 @@ void finishScopeParamInference(FuncDeclaration funcdecl, ref TypeFunction f)
         f.isScopeQual = funcdecl.vthis.isScope();
         f.isScopeInferred = !!(funcdecl.vthis.storage_class & STC.scopeinferred);
     }
+
+    if (funcdecl.isFuncLiteralDeclaration() && funcdecl.outerVars.length && !f.mod)
+    {
+        MOD mod = 0;
+        if (!hasContextModWrite(funcdecl))
+        {
+            mod = MODFlags.const_;
+            bool allImmutable = true;
+            foreach (v; funcdecl.outerVars)
+            {
+                if (!v.type.isImmutable())
+                {
+                    allImmutable = false;
+                    break;
+                }
+            }
+            if (allImmutable)
+                mod = MODFlags.immutable_;
+        }
+
+        if (mod)
+        {
+            if (funcdecl.type == f)
+                f = cast(TypeFunction)f.copy();
+            f.mod = mod;
+            if (funcdecl.vthis)
+                funcdecl.vthis.type = funcdecl.vthis.type.addMod(mod);
+        }
+    }
+
+    // Only needed during attribute inference; discard the bookkeeping once done.
+    clearContextModWrite(funcdecl);
 }
 
 /************************************************

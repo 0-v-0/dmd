@@ -18707,6 +18707,9 @@ private Modifiable checkModify(Declaration d, Loc loc, Scope* sc, Expression e1,
 
     auto eSink = global.errorSink;
 
+    if (v && sc.func && sc.func.isFuncLiteralDeclaration() && d.parent && d.parent != sc.parent)
+        markContextModWrite(sc.func);
+
     if (d.isParameter() || d.isResult())
     {
         for (Scope* scx = sc; scx; scx = scx.enclosing)

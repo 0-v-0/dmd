@@ -235,10 +235,10 @@ void* funretscope(scope dg_t ptr) @safe
 /*
 TEST_OUTPUT:
 ---
-fail_compilation/retscope.d(249): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() pure nothrow @nogc @safe` to `void* delegate() scope @safe`
-fail_compilation/retscope.d(249): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() pure nothrow @nogc @safe` to `void* delegate() scope @safe`
-fail_compilation/retscope.d(250): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() pure nothrow @nogc @safe` to `void* delegate() scope @safe`
-fail_compilation/retscope.d(250): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() pure nothrow @nogc @safe` to `void* delegate() scope @safe`
+fail_compilation/retscope.d(249): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() const pure nothrow @nogc @safe` to `void* delegate() scope @safe`
+fail_compilation/retscope.d(249): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() const pure nothrow @nogc @safe` to `void* delegate() scope @safe`
+fail_compilation/retscope.d(250): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() const pure nothrow @nogc @safe` to `void* delegate() scope @safe`
+fail_compilation/retscope.d(250): Error: cannot implicitly convert expression `() => & x` of type `void* delegate() const pure nothrow @nogc @safe` to `void* delegate() scope @safe`
 ---
 */
 
