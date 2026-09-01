@@ -74,6 +74,4 @@ void main() {
 
     enum x6 = test6();
     assert(x6.s == "foo");
-
-    pragma(msg, "issue18038 OK");
 }
