@@ -129,24 +129,37 @@ class Thread : ThreadBase
             //       creating a deadlock
             //
             // Solution: Create the thread in suspended state and then
-            //       add and resume it with slock acquired
+            //       add it to the about-to-start list with slock acquired,
+            //       then resume without holding slock
             assert(m_sz <= uint.max, "m_sz must be less than or equal to uint.max");
             m_tdescr.hndl = cast(HANDLE) _beginthreadex( null, cast(uint) m_sz, &thread_entryPoint, cast(void*) this, CREATE_SUSPENDED, &m_tdescr.tid );
             if ( cast(size_t) m_tdescr.hndl == 0 )
                 onThreadError( "Error creating thread" );
         }
 
+        // NOTE: Only the about-to-start list manipulation needs slock.
+        //       ResumeThread is a local operation that doesn't need the
+        //       lock, and holding it causes the new thread (which calls
+        //       registerThis → acquires slock) to block unnecessarily.
         slock.lock_nothrow();
-        scope(exit) slock.unlock_nothrow();
+        incrementAboutToStart(this);
+        slock.unlock_nothrow();
+        bool resumed = false;
+        scope(failure)
         {
-            incrementAboutToStart(this);
-            scope(failure) decrementAboutToStart(this);
-
-            if ( ResumeThread( m_tdescr.hndl ) == -1 )
-                onThreadError( "Error resuming thread" );
-
-            return this;
+            if ( !resumed )
+            {
+                slock.lock_nothrow();
+                decrementAboutToStart(this);
+                slock.unlock_nothrow();
+            }
         }
+
+        if ( ResumeThread( m_tdescr.hndl ) == -1 )
+            onThreadError( "Error resuming thread" );
+        resumed = true;
+
+        return this;
     }
 
     override final Throwable join( bool rethrow = true )

@@ -266,55 +266,73 @@ class Thread : ThreadBase
                 onThreadError( "Error initializing thread stack size" );
         }
 
+        // NOTE: Only the about-to-start list manipulation needs slock.
+        //       The rest — atomicStore, pthread_create, pthread_attr_destroy,
+        //       and Darwin's pthread_mach_thread_np — are local or already
+        //       atomic. Holding slock during pthread_create is unnecessary
+        //       and causes contention: the new thread calls registerThis
+        //       (which acquires slock) as soon as it starts, so it would
+        //       block until start() releases slock. The thread is already
+        //       in the about-to-start list, keeping it reachable for GC
+        //       while it is being started.
         slock.lock_nothrow();
-        scope(exit) slock.unlock_nothrow();
+        incrementAboutToStart(this);
+        slock.unlock_nothrow();
+
+        version (all)
         {
-            incrementAboutToStart(this);
-            scope(failure) decrementAboutToStart(this);
-
-            version (all)
+            // NOTE: This is also set to true by thread_entryPoint, but set it
+            //       here as well so the calling thread will see the isRunning
+            //       state immediately.
+            atomicStore!(MemoryOrder.raw)(m_isRunning, true);
+            bool created = false;
+            scope( failure )
             {
-                // NOTE: This is also set to true by thread_entryPoint, but set it
-                //       here as well so the calling thread will see the isRunning
-                //       state immediately.
-                atomicStore!(MemoryOrder.raw)(m_isRunning, true);
-                scope( failure ) atomicStore!(MemoryOrder.raw)(m_isRunning, false);
-
-                version (Shared)
+                if ( !created )
                 {
-                    auto libs = externDFunc!("rt.sections_elf_shared.pinLoadedLibraries",
-                                             void* function() @nogc nothrow)();
-
-                    auto ps = cast(void**).malloc(2 * size_t.sizeof);
-                    if (ps is null) onOutOfMemoryError();
-                    ps[0] = cast(void*)this;
-                    ps[1] = cast(void*)libs;
-                    if ( pthread_create( &m_tdescr.tid, &attr, &thread_entryPoint, ps ) != 0 )
-                    {
-                        externDFunc!("rt.sections_elf_shared.unpinLoadedLibraries",
-                                     void function(void*) @nogc nothrow)(libs);
-                        .free(ps);
-                        onThreadError( "Error creating thread" );
-                    }
-                }
-                else
-                {
-                    if ( pthread_create( &m_tdescr.tid, &attr, &thread_entryPoint, cast(void*) this ) != 0 )
-                        onThreadError( "Error creating thread" );
-                }
-                if ( pthread_attr_destroy( &attr ) != 0 )
-                    onThreadError( "Error destroying thread attributes" );
-
-                version (Darwin)
-                {
-                    m_tdescr.tmach = pthread_mach_thread_np( m_tdescr.tid );
-                    if ( m_tdescr.tmach == m_tdescr.tmach.init )
-                        onThreadError( "Error creating thread" );
+                    atomicStore!(MemoryOrder.raw)(m_isRunning, false);
+                    slock.lock_nothrow();
+                    decrementAboutToStart(this);
+                    slock.unlock_nothrow();
                 }
             }
 
-            return this;
+            version (Shared)
+            {
+                auto libs = externDFunc!("rt.sections_elf_shared.pinLoadedLibraries",
+                                         void* function() @nogc nothrow)();
+
+                auto ps = cast(void**).malloc(2 * size_t.sizeof);
+                if (ps is null) onOutOfMemoryError();
+                ps[0] = cast(void*)this;
+                ps[1] = cast(void*)libs;
+                if ( pthread_create( &m_tdescr.tid, &attr, &thread_entryPoint, ps ) != 0 )
+                {
+                    externDFunc!("rt.sections_elf_shared.unpinLoadedLibraries",
+                                 void function(void*) @nogc nothrow)(libs);
+                    .free(ps);
+                    onThreadError( "Error creating thread" );
+                }
+            }
+            else
+            {
+                if ( pthread_create( &m_tdescr.tid, &attr, &thread_entryPoint, cast(void*) this ) != 0 )
+                    onThreadError( "Error creating thread" );
+            }
+            created = true;
+
+            if ( pthread_attr_destroy( &attr ) != 0 )
+                onThreadError( "Error destroying thread attributes" );
+
+            version (Darwin)
+            {
+                m_tdescr.tmach = pthread_mach_thread_np( m_tdescr.tid );
+                if ( m_tdescr.tmach == m_tdescr.tmach.init )
+                    onThreadError( "Error creating thread" );
+            }
         }
+
+        return this;
     }
 
     override final Throwable join( bool rethrow = true )
