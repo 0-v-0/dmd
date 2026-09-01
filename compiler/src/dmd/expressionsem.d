@@ -1811,6 +1811,12 @@ Expression getField(StructLiteralExp sle, Type type, uint offset)
         e2 = e2.copy();
         e2.type = type;
     }
+    // A StringExp extracted from a struct literal field is not a polysemous
+    // source literal; mark it committed so it won't match a different
+    // character type.
+    // https://issues.dlang.org/show_bug.cgi?id=17942
+    if (auto se = e2.isStringExp())
+        se.committed = true;
     if (sle.useStaticInit && e2.type.needsNested())
         if (auto se = e2.isStructLiteralExp())
         {
@@ -19182,6 +19188,12 @@ private Expression expandInitializer(VarDeclaration vd, Loc loc)
     else
         e = e.copy();
     e.loc = loc;    // for better error message
+    // A StringExp from a manifest constant's initializer is not a polysemous
+    // source literal; mark it committed so it won't match a different
+    // character type.
+    // https://issues.dlang.org/show_bug.cgi?id=17942
+    if (auto se = e.isStringExp())
+        se.committed = true;
     return e;
 }
 

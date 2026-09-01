@@ -204,6 +204,11 @@ private Expression fromConstInitializer(int result, Expression e1)
         // Type 'paint' operation
         e = e.copy();
         e.type = e1.type;
+        // A StringExp whose type was painted (not explicitly cast) is not a
+        // polysemous source literal; mark it committed.
+        // https://issues.dlang.org/show_bug.cgi?id=17942
+        if (auto se = e.isStringExp())
+            se.committed = true;
     }
     e.loc = e1.loc;
 

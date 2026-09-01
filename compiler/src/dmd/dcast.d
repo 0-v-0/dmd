@@ -176,6 +176,12 @@ Expression implicitCastTo(Expression e, Scope* sc, Type t)
         auto result = e.optimize(WANTvalue);
         if (result != e)
         {
+            // A StringExp produced by optimizing a typed expression is not a
+            // polysemous source literal; mark it committed so it won't match
+            // a different character type.
+            // https://issues.dlang.org/show_bug.cgi?id=17942
+            if (auto se = result.isStringExp())
+                se.committed = true;
             return implicitCastTo(result, sc, t);
         }
 
@@ -338,6 +344,12 @@ MATCH implicitConvTo(Expression e, Type t)
         if (ex != e)
         {
             //printf("\toptimized to %s of type %s\n", e.toChars(), e.type.toChars());
+            // A StringExp produced by optimizing a typed expression is not a
+            // polysemous source literal; mark it committed so it won't match
+            // a different character type.
+            // https://issues.dlang.org/show_bug.cgi?id=17942
+            if (auto se = ex.isStringExp())
+                se.committed = true;
             return ex.implicitConvTo(t);
         }
 
