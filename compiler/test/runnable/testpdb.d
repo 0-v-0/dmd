@@ -41,6 +41,7 @@ void main(string[] args)
         testLineNumbers19747(session, globals);
         testLineNumbers19719(session, globals);
         testLineNumbers19587(session, globals);
+        testPDB17581(session, globals);
 
         S18984 s = test18984(session, globals);
 
@@ -190,6 +191,66 @@ void testLineNumbers19719(IDiaSession session, IDiaSymbol globals)
         found = found || (ln.srcfile.length >= mixinfile.length && ln.srcfile[$-mixinfile.length .. $] == mixinfile);
     assert(found);
 }
+
+
+///////////////////////////////////////////////
+// https://github.com/dlang/dmd/issues/17581
+// CodeView: missing BLOCK, WITH and LABEL symbols
+
+int test17581()
+{
+    int sum;
+    for (int i = 0; i < 2; ++i)
+        sum += i;
+label17581:
+    for (int i = 0; i < 2; ++i)
+        sum += i;
+    goto done17581;
+done17581:
+    return sum;
+}
+
+DWORD countSymbolsByTag(IDiaSymbol parent, SymTagEnum tag)
+{
+    IDiaEnumSymbols enumSymbols;
+    HRESULT hr = parent.findChildren(SymTagEnum.SymTagNull, null, NameSearchOptions.nsNone, &enumSymbols);
+    if (hr != S_OK)
+        return 0;
+
+    DWORD total = 0;
+    DWORD celt;
+    IDiaSymbol sym;
+    while (enumSymbols.Next(1, &sym, &celt) == S_OK && celt == 1)
+    {
+        DWORD symTag;
+        sym.get_symTag(&symTag) == S_OK || assert(false, "failed to read symbol tag");
+        if (cast(SymTagEnum)symTag == tag)
+            total++;
+        total += countSymbolsByTag(sym, tag);
+        sym.Release();
+    }
+    enumSymbols.Release();
+    return total;
+}
+
+void testPDB17581(IDiaSession session, IDiaSymbol globals)
+{
+    test17581();
+    IDiaSymbol pubsym = searchSymbol(globals, cPrefix ~ test17581.mangleof);
+    assert(pubsym, "symbol test17581 not found");
+
+    DWORD rva;
+    pubsym.get_relativeVirtualAddress(&rva) == S_OK || assert(false, "test17581: no rva");
+    IDiaSymbol funcsym;
+    session.findSymbolByRVA(rva, SymTagEnum.SymTagFunction, &funcsym) == S_OK || assert(false, "test17581: no function symbol");
+
+    auto blockCount = countSymbolsByTag(funcsym, SymTagEnum.SymTagBlock);
+    assert(blockCount >= 2, "expected block symbols for both for-loops");
+
+    auto labelCount = countSymbolsByTag(funcsym, SymTagEnum.SymTagLabel);
+    assert(labelCount >= 1, "expected label symbols");
+}
+
 
 
 ///////////////////////////////////////////////

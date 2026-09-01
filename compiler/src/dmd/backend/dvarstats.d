@@ -34,7 +34,7 @@ version (all) // free function version
 
     void varStats_writeSymbolTable(Symbol* sfn, ref symtab_t symtab,
             void function(Symbol*) nothrow fnWriteVar, void function() nothrow fnEndArgs,
-            void function(int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
+            void function(Symbol*, int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
     {
         varStats.writeSymbolTable(sfn, symtab, fnWriteVar, fnEndArgs, fnBeginBlock, fnEndBlock);
     }
@@ -298,7 +298,7 @@ private symtab_t* calcLexicalScope(Symbol* sfn, return ref symtab_t symtab) retu
 
 public void writeSymbolTable(Symbol* sfn, ref symtab_t symtab,
             void function(Symbol*) nothrow fnWriteVar, void function() nothrow fnEndArgs,
-            void function(int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
+            void function(Symbol*, int off,int len) nothrow fnBeginBlock, void function() nothrow fnEndBlock)
 {
     auto symtab2 = calcLexicalScope(sfn, symtab);
 
@@ -336,7 +336,7 @@ public void writeSymbolTable(Symbol* sfn, ref symtab_t symtab,
             if (len > 0)
             {
                 if(fnBeginBlock)
-                    (*fnBeginBlock)(off, len);
+                    (*fnBeginBlock)(sa, off, len);
                 openBlocks++;
             }
             lastOffset = off;

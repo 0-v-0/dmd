@@ -1037,10 +1037,12 @@ void writefunc2(Symbol* sfunc, ref GlobalOptimizer go, ref BlockOpt bo)
     else
     {
         sfunc.Sfunc.Fstartblock = null;
-        blocklist_free(bo, &bo.startblock);
     }
 
     objmod.func_term(sfunc);
+    if (!saveForInlining)
+        blocklist_free(bo, &bo.startblock);
+
     if (eecontext.EEcompile == 1)
         goto Ldone;
     if (sfunc.Sclass == SC.global)
