@@ -3173,7 +3173,7 @@ public:
                 auto aex = ae1 ? ae1 : ae2;
                 if (!aex.elements)
                 {
-                    emplaceExp!ArrayLiteralExp(&ue, loc, type, cast(Expressions*) null);
+                    emplaceExp!ArrayLiteralExp(&ue, loc, type, new Expressions());
                     return ue;
                 }
                 const length = aex.length;
@@ -6435,6 +6435,8 @@ bool stopPointersEscaping(Loc loc, Expression e)
 private
 bool stopPointersEscapingFromArray(Loc loc, Expressions* elems)
 {
+    if (!elems)
+        return true;
     foreach (e; *elems)
     {
         if (e && !stopPointersEscaping(loc, e))
@@ -6512,6 +6514,9 @@ private Expression scrubReturnValue(Loc loc, Expression e)
 
         static bool isEntirelyVoid(const Expressions* elems)
         {
+            if (!elems)
+                return true;
+
             foreach (e; *elems)
             {
                 // It can be NULL for performance reasons,
@@ -6540,6 +6545,8 @@ private Expression scrubReturnValue(Loc loc, Expression e)
      */
     Expression scrubArray(Expressions* elems, bool structlit = false)
     {
+        if (!elems)
+            return null;
         foreach (ref e; *elems)
         {
             // It can be NULL for performance reasons,
@@ -6638,6 +6645,8 @@ private Expression scrubCacheValue(Expression e)
 
     Expression scrubArrayCache(Expressions* elems)
     {
+        if (!elems)
+            return null;
         foreach (ref e; *elems)
             e = scrubCacheValue(e);
         return null;
@@ -6713,6 +6722,8 @@ private Expression copyRegionExp(Expression e)
 
     static void copyArray(Expressions* elems)
     {
+        if (!elems)
+            return;
         foreach (ref e; *elems)
         {
             auto ex = e;

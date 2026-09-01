@@ -201,7 +201,7 @@ bool needToCopyLiteral(const Expression expr) nothrow
 private Expressions* copyLiteralArray(Expressions* oldelems)
 {
     if (!oldelems)
-        return oldelems;
+        return new Expressions();
     incArrayAllocs();
     auto newelems = new Expressions(oldelems.length);
     foreach (i, el; *oldelems)
