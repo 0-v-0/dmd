@@ -5946,6 +5946,41 @@ void functionResolve(ref MatchAccumulator m, Dsymbol dstart, Loc loc, Scope* sc,
             if (tthis.mod == m.lastf.type.mod) return 0;
         }
 
+        /* Issue 18532: Tiebreaker for integer sign preservation.
+         * When two functions match at the same level, prefer the one
+         * that avoids signed-to-unsigned integer conversions.
+         * E.g., int -> long is preferred over int -> ulong.
+         * Note: unsigned -> signed (larger) is NOT penalized because
+         * the value is always preserved (unsigned fits in larger signed).
+         */
+        {
+            auto tf_last = m.lastf.type.toTypeFunction();
+            auto tf_curr = tf;
+            auto args2 = argumentList.arguments ? (*argumentList.arguments)[] : null;
+            int currBetter = 0;
+            int lastBetter = 0;
+            const n = tf_last.parameterList.length < tf_curr.parameterList.length
+                ? tf_last.parameterList.length : tf_curr.parameterList.length;
+            foreach (i; 0 .. n)
+            {
+                if (i >= args2.length) break;
+                if (!args2[i]) continue;
+                Type targ = args2[i].type.toBasetype();
+                Type tp_last = tf_last.parameterList[i].type.toBasetype();
+                Type tp_curr = tf_curr.parameterList[i].type.toBasetype();
+                if (!targ.isIntegral() || !tp_last.isIntegral() || !tp_curr.isIntegral())
+                    continue;
+                const signLoss_last = !targ.isUnsigned() && tp_last.isUnsigned();
+                const signLoss_curr = !targ.isUnsigned() && tp_curr.isUnsigned();
+                if (signLoss_last && !signLoss_curr)
+                    currBetter++;
+                else if (signLoss_curr && !signLoss_last)
+                    lastBetter++;
+            }
+            if (currBetter > lastBetter) return firstIsBetter();
+            if (lastBetter > currBetter) return 0;
+        }
+
         m.nextf = fd;
         m.count++;
         return 0;
