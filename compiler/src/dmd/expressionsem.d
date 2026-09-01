@@ -11891,6 +11891,29 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
 
         Type t1b = exp.e1.type.toBasetype();
 
+        // https://issues.dlang.org/show_bug.cgi?id=19831
+        // If the base type is a struct/class with alias this,
+        // try resolving alias this before giving up on indexing.
+        if (t1b.ty != Ttuple && !t1b.isStaticOrDynamicArray() && t1b.ty != Tpointer)
+        {
+            if (auto ad = isAggregate(t1b))
+            {
+                if (ad.aliasthis)
+                {
+                    auto e = resolveAliasThis(sc, exp.e1, true);
+                    if (e && e !is exp.e1)
+                    {
+                        auto t2 = e.type.toBasetype();
+                        if (t2.isStaticOrDynamicArray() || t2.ty == Tpointer || t2.ty == Ttuple || t2.ty == Taarray)
+                        {
+                            exp.e1 = e;
+                            t1b = t2;
+                        }
+                    }
+                }
+            }
+        }
+
         if (TypeVector tv1 = t1b.isTypeVector())
         {
             // Convert e1 to corresponding static array
