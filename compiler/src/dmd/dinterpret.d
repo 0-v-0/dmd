@@ -2385,6 +2385,18 @@ public:
             {
                 if (ExpInitializer ie = v._init.isExpInitializer())
                 {
+                    // Issue 17976: The initializer (ie.exp) may reference the variable
+                    // being initialized (e.g., array operations lowered to
+                    // arrayOp(x[], ...)), so ensure the variable has a default value
+                    // before interpreting ie.exp.
+                    if (!hasValue(v) && v.type.toBasetype().isStaticOrDynamicArray() &&
+                        (!(v.isDataseg() || v.storage_class & STC.manifest) || v.isCTFE()))
+                    {
+                        Expression ex = interpretRegion(v.type.defaultInitLiteral(e.loc), istate);
+                        if (exceptionOrCant(ex))
+                            return;
+                        setValueWithoutChecking(v, ex);
+                    }
                     result = interpretRegion(ie.exp, istate, goal);
                     if (result !is null && v.ctfeAdrOnStack != VarDeclaration.AdrOnStackNone)
                         if (!getValue(v))
