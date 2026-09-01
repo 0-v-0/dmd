@@ -4296,6 +4296,11 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
         Scope* sc2 = argscope.push(tm);
         tm.tinst = sc.tinst;
         sc2.tinst = tm;
+        // Propagate linkage from the template declaration's scope,
+        // so that `extern(C++)` on a mixin template is respected.
+        // https://issues.dlang.org/show_bug.cgi?id=17996
+        if (tempdecl._scope)
+            sc2.linkage = tempdecl._scope.linkage;
         //size_t deferred_dim = Module.deferred.length;
 
         __gshared int nest;
