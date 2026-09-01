@@ -1336,3 +1336,25 @@ extern (C++)
 
 extern(C++) enum _LIBNAME = "library";
 extern(C++) enum _DEBUG = _LIBNAME.length && 'd' == _LIBNAME[$-1];
+
+/**************************************/
+// https://issues.dlang.org/show_bug.cgi?id=17954
+// C++ mangling mismatch with templates and namespaces
+// Template function names should not be saved in the MSVC
+// back-reference table, as MSVC does not use back-references for them.
+
+extern(C++, ns17954)
+{
+    struct Foo17954(T) { T x; }
+    Foo17954!int func17954(T)(T v) { Foo17954!int m; return m; }
+    void func17954b(T)(ref Foo17954!T m) {}
+}
+
+version (CppMangle_MSVC)
+{
+    version (Win64)
+    {
+        static assert(func17954!int.mangleof == "??$func17954@H@ns17954@@YA?AU?$Foo17954@H@0@H@Z");
+        static assert(func17954b!int.mangleof == "??$func17954b@H@ns17954@@YAXAEAU?$Foo17954@H@0@@Z");
+    }
+}

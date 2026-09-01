@@ -785,7 +785,11 @@ extern(D):
             }
         }
 
-        writeName(Identifier.idPool(tmp.buf.extractSlice()));
+        // Template instance names (?$...@) should not be saved in the
+        // back-reference table, as MSVC does not use back-references for them.
+        // https://issues.dlang.org/show_bug.cgi?id=17954
+        buf.writestring(tmp.buf.extractSlice());
+        buf.writeByte('@');
         if (needNamespaces && actualti != ti)
         {
             for (auto ns = ti.toAlias().cppnamespace; ns !is null && ns.ident !is null; ns = ns.cppnamespace)
