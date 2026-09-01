@@ -497,6 +497,41 @@ V* _d_aaGetY(K, V, T : V1[K1], K1, V1, K2)(auto ref scope T aa, auto ref K2 key,
 private struct _noV2 {}
 
 /******************************
+ * Lookup key in aa and assign value.
+ * Called from implementation of aa[key] = value expressions.
+ * If the value's postblit/copy constructor throws and the key was newly
+ * inserted, the entry is removed from the AA for exception safety.
+ * Params:
+ *      aa = associative array
+ *      key = reference to the key value
+ *      value = the value to assign
+ *      found = returns whether the key was found or a new entry was added
+ * Returns:
+ *      a mutable pointer to the value
+ */
+V* _d_aaSetY(K, V, K2)(auto ref scope V[K] aa, auto ref K2 key, auto ref V value, out bool found)
+{
+    auto p = _aaGetX!(K, V, K2)(aa, key, found, _noV2());
+    if (found)
+    {
+        *p = value;
+        return p;
+    }
+    // Newly inserted entry with zero-initialized value.
+    // If the assignment fails, remove the entry to keep the AA consistent.
+    try
+    {
+        *p = value;
+    }
+    catch (Exception e)
+    {
+        _d_aaDel!(V[K], K, V, K2)(aa, key);
+        throw e;
+    }
+    return p;
+}
+
+/******************************
  * Lookup key in aa.
  * Called only from implementation of require, update and _d_aaGetY
  * Params:

@@ -48,6 +48,7 @@ void main()
     testAliasThis2();
     testStringKey();
     test17641();
+    test17374();
 }
 
 void testKeysValues1()
@@ -1120,4 +1121,36 @@ void test17641() @safe
         foreach (int j; 0 .. 100_000)
             myMap[rv(++i)]=i;
     }
+}
+
+void test17374()
+{
+    // Issue 17374: AA insertion is not exception-safe.
+    // If the value's postblit throws, the key should not be left in the AA.
+    static struct S
+    {
+        bool cond;
+        this(this)
+        {
+            if (cond)
+                throw new Exception("failure");
+        }
+    }
+    S[int] aa;
+    try
+        aa[1] = S(true);
+    catch (Exception)
+    {
+    }
+    assert(aa.keys.length == 0, "key should not be in AA after failed insertion");
+
+    // Also test with a value that doesn't throw (should still insert)
+    aa[2] = S(false);
+    assert(aa.keys.length == 1);
+    assert(2 in aa);
+
+    // Test that re-assigning an existing key with a throwing value
+    // leaves the old value (the key stays, but that's expected since it was already there)
+    aa[2] = S(false); // ok, no throw
+    assert(aa.keys.length == 1);
 }

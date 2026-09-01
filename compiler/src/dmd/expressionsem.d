@@ -3617,7 +3617,7 @@ private bool checkNogc(FuncDeclaration f, ref Loc loc, Scope* sc)
         || f.ident == Id._d_arrayappendT || f.ident == Id._d_arrayappendcTX
         || f.ident == Id._d_arraycatnTX || f.ident == Id._d_newclassT
         || f.ident == Id._d_assocarrayliteralTX || f.ident == Id._d_arrayliteralTX
-        || f.ident == Id._d_aaGetY))
+        || f.ident == Id._d_aaGetY || f.ident == Id._d_aaSetY))
     {
         auto eSink = global.errorSink;
         eSink.error(loc, "`@nogc` %s `%s` cannot call non-@nogc %s `%s`",
@@ -20122,6 +20122,17 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
     }
     Expression ev = extractSideEffect(sc, "__aaval", e0, e2); // must be evaluated before the insertion
 
+    // Use exception-safe _d_aaSetY for aa[key] = value.
+    // _d_aaSetY combines insertion and assignment atomically,
+    // reverting the insertion if the assignment (postblit/opAssign) throws.
+    bool useSetY = exp.isAssignExp() !is null;
+    if (useSetY)
+    {
+        if (!verifyHookExist(loc, *sc, Id._d_aaSetY, "modifying AA"))
+            return ErrorExp.get();
+    }
+
+
     // generate series of calls to _d_aaGetY
     for (size_t i = ekeys.length; i > 0; --i)
     {
@@ -20130,9 +20141,15 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
         Expression func = new IdentifierExp(loc, Id.empty);
         func = new DotIdExp(loc, func, Id.object);
         auto tiargs = new Objects(taa.index, taa.next);
-        func = new DotTemplateInstanceExp(loc, func, hook, tiargs);
+        func = new DotTemplateInstanceExp(loc, func, (useSetY && i == 1) ? Id._d_aaSetY : hook, tiargs);
 
-        auto arguments = new Expressions(eaa, ekeys[i-1], new VarExp(loc, varfound));
+        auto arguments = new Expressions();
+        arguments.push(eaa);
+        arguments.push(ekeys[i-1]);
+        if (useSetY && i == 1)
+            arguments.push(ev);
+        arguments.push(new VarExp(loc, varfound));
+
         eaa = new CallExp(loc, func, arguments);
         if (i > 1)
         {
@@ -20164,6 +20181,15 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
         ex = Expression.combine(e0, bex);
         ex.isCommaExp().originalExp = exp;
         return ex.expressionSemantic(sc);
+    }
+    if (useSetY)
+    {
+        // _d_aaSetY already assigned the value atomically;
+        // no separate AssignExp needed.
+        ex = Expression.combine(e0, ex);
+        ex.isCommaExp().originalExp = exp;
+        ex = ex.expressionSemantic(sc);
+        return ex;
     }
     AssignExp ae = new AssignExp(loc, ex, ev);
     auto ts = ie.type.isTypeStruct();

@@ -7123,6 +7123,54 @@ private Expression pointerToAAValue(UnionExp* pue, Expression aa, AssocArrayLite
     return pue.exp();
 }
 
+// signature is V* _d_aaSetY(ref V[K] aa, K key, V value, out bool found)
+private Expression interpret_aaSetY(UnionExp* pue, InterState* istate, Expression aa, Expression key, Expression value, Expression found)
+{
+    Expression eaa = interpretRegion(aa, istate, CTFEGoal.LValue);
+    if (exceptionOrCantInterpret(eaa))
+        return eaa;
+    Expression ekey = interpretRegion(key, istate);
+    if (exceptionOrCantInterpret(ekey))
+        return ekey;
+    Expression evalue = interpretRegion(value, istate);
+    if (exceptionOrCantInterpret(evalue))
+        return evalue;
+    Expression efound = interpretRegion(found, istate, CTFEGoal.LValue);
+    if (exceptionOrCantInterpret(efound))
+        return efound;
+
+    auto ie = ctfeEmplaceExp!IndexExp(aa.loc, aa, key); // any BinExp for location in assignToLvalue
+    Expression evalaa = interpretRegion(eaa, istate);
+    auto aalit = evalaa.isAssocArrayLiteralExp();
+    if (!aalit)
+    {
+        auto keysx = new Expressions();
+        auto valuesx = new Expressions();
+        aalit = ctfeEmplaceExp!AssocArrayLiteralExp(aa.loc, keysx, valuesx);
+        aalit.type = aa.type;
+        aalit.ownedByCtfe = OwnedBy.ctfe;
+        Interpreter.assignToLvalue(ie, eaa, aalit, istate);
+    }
+    size_t idx;
+    auto result = findKeyInAA(aa.loc, aalit, ekey, &idx);
+    if (found)
+        Interpreter.assignToLvalue(ie, efound, IntegerExp.createBool(result !is null), istate);
+    if (!result)
+    {
+        // Key not found: insert with the value
+        aalit.keys.push(ekey);
+        result = copyLiteral(evalue).copy();
+        idx = aalit.values.length;
+        aalit.values.push(result);
+    }
+    else
+    {
+        // Key found: assign value to existing entry
+        (*aalit.values)[idx] = copyLiteral(evalue).copy();
+    }
+    return pointerToAAValue(pue, aa, aalit, idx);
+}
+
 // signature is int delegate(ref Value) OR int delegate(ref Key, ref Value)
 private Expression interpret_aaApply(UnionExp* pue, InterState* istate, Expression aa, Expression deleg)
 {
@@ -7434,7 +7482,7 @@ private Expression evaluateIfBuiltin(UnionExp* pue, InterState* istate, Loc loc,
     }
     if (!pthis)
     {
-        if (nargs >= 1 && nargs <= 3)
+        if (nargs >= 1 && nargs <= 4)
         {
             Expression firstarg = (*arguments)[0];
             if (auto firstAAtype = firstarg.type.toBasetype().isTypeAArray())
@@ -7472,10 +7520,15 @@ private Expression evaluateIfBuiltin(UnionExp* pue, InterState* istate, Loc loc,
                     if (id == Id._d_aaApply2)
                         return interpret_aaApply(pue, istate, firstarg, (*arguments)[1]);
                 }
-                else // (nargs == 3)
+                else if (nargs == 3)
                 {
                     if (id == Id._d_aaGetY)
                         return interpret_aaGetY(pue, istate, firstarg, (*arguments)[1], (*arguments)[2]);
+                }
+                else if (nargs == 4)
+                {
+                    if (id == Id._d_aaSetY)
+                        return interpret_aaSetY(pue, istate, firstarg, (*arguments)[1], (*arguments)[2], (*arguments)[3]);
                 }
             }
         }
