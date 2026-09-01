@@ -36,6 +36,7 @@ extern(Windows)
     alias SymGetModuleBase64Func = DWORD64      function(HANDLE hProcess, DWORD64 dwAddr);
     alias SymGetModuleInfo64Func = BOOL         function(HANDLE hProcess, DWORD64 dwAddr, IMAGEHLP_MODULEA64 *ModuleInfo);
     alias SymGetSymFromAddr64Func = BOOL         function(HANDLE hProcess, DWORD64 Address, DWORD64 *Displacement, IMAGEHLP_SYMBOLA64 *Symbol);
+    alias SymFromAddrFunc = BOOL         function(HANDLE hProcess, DWORD64 Address, DWORD64 *Displacement, SYMBOL_INFOA *Symbol);
     alias UnDecorateSymbolNameFunc = DWORD        function(PCSTR DecoratedName, PSTR UnDecoratedName, DWORD UndecoratedLength, DWORD Flags);
     alias SymLoadModule64Func = DWORD64      function(HANDLE hProcess, HANDLE hFile, PCSTR ImageName, PCSTR ModuleName, DWORD64 BaseOfDll, DWORD SizeOfDll);
     alias SymGetSearchPathFunc = BOOL         function(HANDLE hProcess, PSTR SearchPath, DWORD SearchPathLength);
@@ -58,6 +59,7 @@ struct DbgHelp
     SymGetModuleBase64Func   SymGetModuleBase64;
     SymGetModuleInfo64Func   SymGetModuleInfo64;
     SymGetSymFromAddr64Func  SymGetSymFromAddr64;
+    SymFromAddrFunc          SymFromAddr;
     UnDecorateSymbolNameFunc UnDecorateSymbolName;
     SymLoadModule64Func      SymLoadModule64;
     SymGetSearchPathFunc     SymGetSearchPath;
@@ -82,6 +84,7 @@ struct DbgHelp
             sm_inst.SymGetModuleBase64       = cast(SymGetModuleBase64Func) GetProcAddress(sm_hndl,"SymGetModuleBase64");
             sm_inst.SymGetModuleInfo64       = cast(SymGetModuleInfo64Func) GetProcAddress(sm_hndl,"SymGetModuleInfo64");
             sm_inst.SymGetSymFromAddr64      = cast(SymGetSymFromAddr64Func) GetProcAddress(sm_hndl,"SymGetSymFromAddr64");
+            sm_inst.SymFromAddr             = cast(SymFromAddrFunc) GetProcAddress(sm_hndl,"SymFromAddr");
             sm_inst.UnDecorateSymbolName     = cast(UnDecorateSymbolNameFunc) GetProcAddress(sm_hndl,"UnDecorateSymbolName");
             sm_inst.SymLoadModule64          = cast(SymLoadModule64Func) GetProcAddress(sm_hndl,"SymLoadModule64");
             sm_inst.SymGetSearchPath         = cast(SymGetSearchPathFunc) GetProcAddress(sm_hndl,"SymGetSearchPath");

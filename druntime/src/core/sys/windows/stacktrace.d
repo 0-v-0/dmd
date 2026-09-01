@@ -257,13 +257,26 @@ private:
 
         HANDLE hProcess = GetCurrentProcess();
 
+        // Buffer for the modern SymFromAddr API (SYMBOL_INFO based)
+        static struct BufSymbolInfo
+        {
+        align(1):
+            SYMBOL_INFOA _base;
+            CHAR[1024] _buf = void;
+        }
+        BufSymbolInfo bufSymInfo = void;
+        SYMBOL_INFOA* symInfo = &bufSymInfo._base;
+        symInfo.SizeOfStruct = SYMBOL_INFOA.sizeof;
+        symInfo.MaxNameLen = bufSymInfo._buf.length;
+
+        // Buffer for the deprecated SymGetSymFromAddr64 API (fallback)
         static struct BufSymbol
         {
         align(1):
             IMAGEHLP_SYMBOLA64 _base;
             TCHAR[1024] _buf = void;
         }
-        BufSymbol bufSymbol=void;
+        BufSymbol bufSymbol = void;
         IMAGEHLP_SYMBOLA64* symbol = &bufSymbol._base;
         symbol.SizeOfStruct = IMAGEHLP_SYMBOLA64.sizeof;
         symbol.MaxNameLength = bufSymbol._buf.length;
@@ -272,21 +285,68 @@ private:
         foreach (pc; addresses)
         {
             char[] res;
-            if (dbghelp.SymGetSymFromAddr64(hProcess, pc, null, symbol) &&
-                *symbol.Name.ptr)
-            {
-                DWORD disp;
-                IMAGEHLP_LINEA64 line=void;
-                line.SizeOfStruct = IMAGEHLP_LINEA64.sizeof;
+            bool gotSymbol = false;
 
-                if (dbghelp.SymGetLineFromAddr64(hProcess, pc, &disp, &line))
-                    res = formatStackFrame(cast(void*)pc, symbol.Name.ptr,
-                                           line.FileName, line.LineNumber);
-                else
-                    res = formatStackFrame(cast(void*)pc, symbol.Name.ptr);
+            // Prefer the modern SymFromAddr API when available.
+            // It can access more symbol types than the deprecated
+            // SymGetSymFromAddr64, improving function name resolution.
+            if (dbghelp.SymFromAddr !is null)
+            {
+                DWORD64 displacement;
+                if (dbghelp.SymFromAddr(hProcess, pc, &displacement, symInfo) &&
+                    symInfo.NameLen > 0)
+                {
+                    gotSymbol = true;
+                    DWORD disp;
+                    IMAGEHLP_LINEA64 line = void;
+                    line.SizeOfStruct = IMAGEHLP_LINEA64.sizeof;
+
+                    if (dbghelp.SymGetLineFromAddr64(hProcess, pc, &disp, &line))
+                        res = formatStackFrame(cast(void*)pc, symInfo.Name.ptr,
+                                               line.FileName, line.LineNumber);
+                    else
+                        res = formatStackFrame(cast(void*)pc, symInfo.Name.ptr);
+                }
             }
-            else
-                res = formatStackFrame(cast(void*)pc);
+
+            // Fall back to the deprecated SymGetSymFromAddr64 API.
+            // This is still needed for older versions of dbghelp.dll.
+            if (!gotSymbol)
+            {
+                if (dbghelp.SymGetSymFromAddr64(hProcess, pc, null, symbol) &&
+                    *symbol.Name.ptr)
+                {
+                    gotSymbol = true;
+                    DWORD disp;
+                    IMAGEHLP_LINEA64 line = void;
+                    line.SizeOfStruct = IMAGEHLP_LINEA64.sizeof;
+
+                    if (dbghelp.SymGetLineFromAddr64(hProcess, pc, &disp, &line))
+                        res = formatStackFrame(cast(void*)pc, symbol.Name.ptr,
+                                               line.FileName, line.LineNumber);
+                    else
+                        res = formatStackFrame(cast(void*)pc, symbol.Name.ptr);
+                }
+            }
+
+            // When no symbol could be resolved, try to identify the
+            // containing module (DLL/EXE) so the trace is more useful
+            // even without debug symbols (PDB) being available.
+            if (!gotSymbol)
+            {
+                IMAGEHLP_MODULEA64 modInfo = void;
+                modInfo.SizeOfStruct = IMAGEHLP_MODULEA64.sizeof;
+                if (dbghelp.SymGetModuleInfo64(hProcess, pc, &modInfo) &&
+                    *modInfo.ModuleName.ptr)
+                {
+                    res = formatStackFrame(cast(void*)pc);
+                    res ~= " in ";
+                    res ~= modInfo.ModuleName[0 .. strlen(modInfo.ModuleName.ptr)];
+                }
+                else
+                    res = formatStackFrame(cast(void*)pc);
+            }
+
             trace ~= res;
         }
         return trace;
@@ -350,6 +410,26 @@ private string generateSearchPath()
             path ~= ";";
         }
     }
+
+    // Add the directory of the main executable so that dbghelp can
+    // find PDB files placed alongside the .exe without requiring the
+    // user to set _NT_SYMBOL_PATH. This improves the chances of
+    // resolving function names in stack traces (issue #17233).
+    if ( (len = GetModuleFileNameA(null, temp.ptr, temp.length)) > 0 && len < temp.length )
+    {
+        auto exePath = temp[0 .. len];
+        // Strip the file name, keep only the directory.
+        foreach_reverse (i, c; exePath)
+        {
+            if (c == '\\' || c == '/')
+            {
+                path ~= exePath[0 .. i];
+                path ~= ";";
+                break;
+            }
+        }
+    }
+
     path ~= "\0";
     return path;
 }

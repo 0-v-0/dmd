@@ -203,6 +203,43 @@ struct IMAGEHLP_SYMBOLW64
     WCHAR[1] Name = 0;
 }
 
+struct SYMBOL_INFOA
+{
+    ULONG    SizeOfStruct;
+    ULONG    TypeIndex;
+    ULONG64[2] Reserved;
+    ULONG    Index;
+    ULONG    Size;
+    ULONG64  ModBase;
+    ULONG    Flags;
+    ULONG64  Value;
+    ULONG64  Address;
+    ULONG    Register;
+    ULONG    Scope;
+    ULONG    Tag;
+    ULONG    NameLen;
+    ULONG    MaxNameLen;
+    CHAR[1]  Name = 0;
+}
+struct SYMBOL_INFOW
+{
+    ULONG    SizeOfStruct;
+    ULONG    TypeIndex;
+    ULONG64[2] Reserved;
+    ULONG    Index;
+    ULONG    Size;
+    ULONG64  ModBase;
+    ULONG    Flags;
+    ULONG64  Value;
+    ULONG64  Address;
+    ULONG    Register;
+    ULONG    Scope;
+    ULONG    Tag;
+    ULONG    NameLen;
+    ULONG    MaxNameLen;
+    WCHAR[1] Name = 0;
+}
+
 
 struct IMAGEHLP_CBA_READ_MEMORY
 {
@@ -225,10 +262,12 @@ version (Unicode)
     alias IMAGEHLP_LINE64 = IMAGEHLP_LINEW64;
     alias IMAGEHLP_MODULE64 = IMAGEHLP_MODULEW64;
     alias IMAGEHLP_SYMBOL64 = IMAGEHLP_SYMBOLW64;
+    alias SYMBOL_INFO = SYMBOL_INFOW;
 }
 else
 {
     alias IMAGEHLP_LINE64 = IMAGEHLP_LINEA64;
     alias IMAGEHLP_MODULE64 = IMAGEHLP_MODULEA64;
     alias IMAGEHLP_SYMBOL64 = IMAGEHLP_SYMBOLA64;
+    alias SYMBOL_INFO = SYMBOL_INFOA;
 }
