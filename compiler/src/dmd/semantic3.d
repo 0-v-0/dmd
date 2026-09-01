@@ -77,6 +77,8 @@ import dmd.templateparamsem;
 import dmd.templatesem;
 import dmd.typesem;
 import dmd.visitor;
+import dmd.visitor.postorder;
+import dmd.intrange;
 
 version (IN_GCC) { /* Not using Fast DFA */ }
 else version = FastDFA;
@@ -96,6 +98,162 @@ void semantic3(Dsymbol dsym, Scope* sc)
     dsym.accept(v);
 }
 
+/**************************************
+ * Conservative range-checking for array lengths (issue #18361).
+ */
+
+private struct ArrayBoundsState
+{
+    bool[VarDeclaration] reassigned;
+    Expression[] indexExps;
+}
+
+private extern (C++) final class ArrayBoundsVisitor : StoppableVisitor
+{
+    alias visit = typeof(super).visit;
+
+    ArrayBoundsState* state;
+    bool walkingInit;
+
+    override void visit(Expression e) {}
+    override void visit(Statement s) {}
+    override void visit(Dsymbol s) {}
+
+    void walkExpr(Expression e)
+    {
+        if (!e)
+            return;
+        stop = false;
+        walkPostorder(e, this);
+        stop = false;
+    }
+
+    void markTarget(Expression e1)
+    {
+        if (walkingInit)
+            return;
+        if (auto ve = e1.isVarExp())
+        {
+            if (auto v = ve.var.isVarDeclaration())
+                state.reassigned[v] = true;
+        }
+        else if (auto ale = e1.isArrayLengthExp())
+        {
+            if (auto ve = ale.e1.isVarExp())
+                if (auto v = ve.var.isVarDeclaration())
+                    state.reassigned[v] = true;
+        }
+    }
+
+    override void visit(AssignExp e) { markTarget(e.e1); }
+    override void visit(CatAssignExp e) { markTarget(e.e1); }
+    override void visit(IndexExp e) { state.indexExps ~= e; }
+
+    override void visit(DeclarationExp e)
+    {
+        if (auto vd = e.declaration.isVarDeclaration())
+        {
+            if (vd._init)
+            {
+                if (auto ei = vd._init.isExpInitializer())
+                    if (ei.exp)
+                    {
+                        walkingInit = true;
+                        walkExpr(ei.exp);
+                        walkingInit = false;
+                    }
+            }
+        }
+    }
+
+    override void visit(ExpStatement s) { walkExpr(s.exp); }
+    override void visit(IfStatement s) { walkExpr(s.condition); }
+    override void visit(ForStatement s) { walkExpr(s.condition); walkExpr(s.increment); }
+    override void visit(WhileStatement s) { walkExpr(s.condition); }
+    override void visit(DoStatement s) { walkExpr(s.condition); }
+    override void visit(SwitchStatement s) { walkExpr(s.condition); }
+    override void visit(CaseStatement s) { walkExpr(s.exp); }
+    override void visit(ReturnStatement s) { walkExpr(s.exp); }
+    override void visit(ThrowStatement s) { walkExpr(s.exp); }
+}
+
+private dinteger_t knownArrayLength(Expression e)
+{
+    if (!e)
+        return dinteger_t.max;
+    if (auto ce = e.isCastExp())
+        return knownArrayLength(ce.e1);
+    if (auto ae = e.isAssignExp())
+        return knownArrayLength(ae.e2);
+    if (auto se = e.isStringExp())
+        return se.len;
+    if (auto ale = e.isArrayLiteralExp())
+        return ale.elements ? ale.elements.length : 0;
+    if (e.type)
+    {
+        auto tsa = e.type.toBasetype().isTypeSArray();
+        if (tsa)
+            return tsa.dim.toInteger();
+    }
+    if (auto ne = e.isNewExp())
+    {
+        if (ne.newtype)
+        {
+            auto tsa = ne.newtype.toBasetype().isTypeSArray();
+            if (tsa)
+                return tsa.dim.toInteger();
+        }
+    }
+    return dinteger_t.max;
+}
+
+package void optimizeArrayBoundsChecks(FuncDeclaration fd)
+{
+    if (!fd.fbody || fd.fbody.isErrorStatement())
+        return;
+    if (fd.type.ty == Terror)
+        return;
+
+    ArrayBoundsState state;
+    scope visitor = new ArrayBoundsVisitor;
+    visitor.state = &state;
+
+    walkPostorder(fd.fbody, visitor);
+
+    foreach (e; state.indexExps)
+    {
+        auto ie = e.isIndexExp();
+        if (!ie || ie.indexIsInBounds)
+            continue;
+        auto ve = ie.e1.isVarExp();
+        if (!ve)
+            continue;
+        auto v = ve.var.isVarDeclaration();
+        if (!v)
+            continue;
+        if (v.isParameter() || v.isField() || v.isDataseg())
+            continue;
+        Type tb = v.type ? v.type.toBasetype() : null;
+        if (!tb || tb.ty != Tarray)
+            continue;
+        if (auto _ = v in state.reassigned)
+            continue;
+        if (!v._init)
+            continue;
+        auto ei = v._init.isExpInitializer();
+        if (!ei)
+            continue;
+        dinteger_t len = knownArrayLength(ei.exp);
+        if (len == dinteger_t.max)
+            continue;
+        if (len)
+        {
+            ie.e2 = ie.e2.optimize(WANTvalue);
+            auto bounds = IntRange(SignExtendedNumber(0), SignExtendedNumber(len - 1));
+            ie.indexIsInBounds |= bounds.contains(getIntRange(ie.e2));
+        }
+    }
+}
 private extern(C++) final class Semantic3Visitor : Visitor
 {
     alias visit = Visitor.visit;
@@ -1463,6 +1621,10 @@ private extern(C++) final class Semantic3Visitor : Visitor
         {
             oblive(funcdecl);
         }
+
+        // Conservative range-checking for array lengths (issue #18361)
+        if (funcdecl.fbody && !funcdecl.fbody.isErrorStatement() && funcdecl.type.ty != Terror)
+            optimizeArrayBoundsChecks(funcdecl);
 
         version (FastDFA)
         {
