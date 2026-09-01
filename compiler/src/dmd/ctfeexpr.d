@@ -721,7 +721,7 @@ Expression getAggregateFromPointer(Expression e, dinteger_t* ofs)
     }
     if (auto se = e.isSliceExp())
     {
-        if (se && e.type.toBasetype().ty == Tsarray &&
+        if (se && (e.type.toBasetype().ty == Tsarray || e.type.toBasetype().ty == Tarray) &&
            (se.e1.type.isStaticOrDynamicArray() || se.e1.op == EXP.string_ || se.e1.op == EXP.arrayLiteral) && se.lwr.op == EXP.int64)
         {
             *ofs = se.lwr.toInteger();
@@ -1370,6 +1370,25 @@ bool ctfeIdentity(Loc loc, EXP op, Expression e1, Expression e2)
     }
     else if (e1.type.isFloating())
         cmp = e1.isIdentical(e2);
+    else if ((e1.type.toBasetype().ty == Tarray && e2.type.toBasetype().ty == Tarray) ||
+             (e1.op == EXP.assocArrayLiteral && e2.op == EXP.assocArrayLiteral))
+    {
+        // For dynamic and associative arrays, `is` compares references
+        // (same memory block + length), not element values. At runtime,
+        // .dup creates a new array, so `a is a.dup` must be false.
+        // https://issues.dlang.org/show_bug.cgi?id=17702
+        const len1 = resolveArrayLength(e1);
+        const len2 = resolveArrayLength(e2);
+        if (len1 != len2)
+            cmp = false;
+        else
+        {
+            dinteger_t ofs1, ofs2;
+            Expression agg1 = getAggregateFromPointer(e1, &ofs1);
+            Expression agg2 = getAggregateFromPointer(e2, &ofs2);
+            cmp = (ofs1 == ofs2) && pointToSameMemoryBlock(agg1, agg2);
+        }
+    }
     else
     {
         cmp = !ctfeRawCmp(loc, e1, e2, true);

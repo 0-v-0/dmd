@@ -2149,6 +2149,7 @@ public:
                      */
                     e = scrubCacheValue(e);
                     ctfeGlobals.stack.saveGlobalConstant(v, e);
+                    e = getValue(v);
                 }
                 else
                 {
