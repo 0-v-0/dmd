@@ -86,7 +86,8 @@ Expression expandVar(int result, VarDeclaration v)
         Type tb = v.type.toBasetype();
         if (v.storage_class & STC.manifest ||
             tb.isScalar() ||
-            ((result & WANTexpand) && (tb.ty != Tsarray && tb.ty != Tstruct)))
+            (tb.ty == Tsarray && v.isDataseg()) ||
+            ((result & WANTexpand) && tb.ty != Tstruct))
         {
             if (v._init)
             {
@@ -143,6 +144,7 @@ Expression expandVar(int result, VarDeclaration v)
                 else if (!(v.storage_class & STC.manifest) &&
                          ei.isConst() != 1 &&
                          ei.op != EXP.string_ &&
+                         ei.op != EXP.arrayLiteral &&
                          ei.op != EXP.address)
                 {
                     return nullReturn();
