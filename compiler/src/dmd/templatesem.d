@@ -2042,6 +2042,30 @@ void aliasSeqInstanceSemantic(TemplateInstance tempinst, Scope* sc, TemplateDecl
 
     tempinst.aliasdecl = d;
 
+    // Issue 18588: If the eponymous member was declared inside a deprecated block,
+    // report the deprecation at the instantiation site. The isTrivialAliasSeq
+    // shortcut bypasses normal member semantic analysis, so we need to check
+    // the template declaration's members directly for deprecated attributes.
+    if (tempdecl.members)
+    {
+        foreach (m; *tempdecl.members)
+        {
+            if (auto scd = m.isStorageClassDeclaration())
+            {
+                if (scd.stc & STC.deprecated_)
+                {
+                    Dsymbol s2;
+                    if (oneMembers(scd.include(null), s2, tempdecl.ident) && s2)
+                    {
+                        auto eSink2 = global.errorSink;
+                        eSink2.deprecation(tempinst.loc, "%s `%s` is deprecated", s2.kind, s2.toPrettyChars);
+                        eSink2.deprecationSupplemental(s2.loc, "`%s` is declared here", s2.toErrMsg);
+                    }
+                }
+            }
+        }
+    }
+
     tempinst.semanticRun = PASS.semanticdone;
 }
 

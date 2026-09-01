@@ -10129,11 +10129,66 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             e = resolvePropertiesX(sc, e);
             // Any error or if 'e' is not resolved, go to UFCS
             if (global.endGagging(errors) || e is ode)
+            {
+                // Issue 18637: If opDispatch failed (e.g., requires runtime arguments),
+                // try alias this resolution before falling through to UFCS.
+                if (auto alias_e = resolveAliasThis(sc, exp.e1, true))
+                {
+                    if (alias_e != exp.e1)
+                    {
+                        auto die = new DotIdExp(exp.loc, alias_e, exp.ident);
+                        auto ae = die.dotIdSemanticProp(sc, true);
+                        if (ae && ae.op != EXP.error)
+                        {
+                            result = ae;
+                            return;
+                        }
+                    }
+                }
                 e = null; /* fall down to UFCS */
+            }
             else
             {
                 result = e;
                 return;
+            }
+        }
+        // Issue 18637: If e is a function from opDispatch that requires arguments,
+        // try to call it as a property. If that fails, try alias this.
+        if (e)
+        {
+            if (auto dve = e.isDotVarExp())
+            {
+                if (auto fd = dve.var.isFuncDeclaration())
+                {
+                    // Check if this function came from opDispatch
+                    if (fd.parent && fd.parent.isTemplateInstance() &&
+                        fd.parent.isTemplateInstance().tempdecl &&
+                        fd.parent.isTemplateInstance().tempdecl.ident == Id.opDispatch)
+                    {
+                        auto ode = e;
+                        const errors = global.startGagging();
+                        e = resolvePropertiesX(sc, e);
+                        if (global.endGagging(errors) || e is ode)
+                        {
+                            // opDispatch function requires arguments; try alias this
+                            if (auto alias_e = resolveAliasThis(sc, exp.e1, true))
+                            {
+                                if (alias_e != exp.e1)
+                                {
+                                    auto die = new DotIdExp(exp.loc, alias_e, exp.ident);
+                                    auto ae = die.dotIdSemanticProp(sc, true);
+                                    if (ae && ae.op != EXP.error)
+                                    {
+                                        result = ae;
+                                        return;
+                                    }
+                                }
+                            }
+                            e = null;
+                        }
+                    }
+                }
             }
         }
         if (!e) // if failed to find the property
