@@ -7019,6 +7019,64 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
 
                 tparam = tparam.typeSemantic(loc, sc);
             }
+            /* https://issues.dlang.org/show_bug.cgi?id=18486
+             * When the parameter type is an unresolved TypeInstance
+             * (e.g. Int!T), try to resolve it by substituting deduced
+             * template parameters, then retry deduceType.
+             */
+            if (tparam.ty == Tinstance)
+            {
+                TypeInstance tinst = tparam.isTypeInstance();
+                if (sc && tinst.tempinst && tinst.tempinst.tiargs)
+                {
+                    auto newTiargs = new Objects(tinst.tempinst.tiargs.length);
+                    bool substituted = false;
+                    foreach (j, arg; *tinst.tempinst.tiargs)
+                    {
+                        if (Type targ = isType(arg))
+                        {
+                            size_t k = templateParameterLookup(targ, parameters);
+                            if (k != IDX_NOTFOUND && (*dedtypes)[k])
+                            {
+                                Type dted = isType((*dedtypes)[k]);
+                                if (dted && dted.ty == Tnone)
+                                    dted = (cast(TypeDeduced)dted).tded;
+                                if (dted && dted.ty != Tnone)
+                                {
+                                    (*newTiargs)[j] = dted;
+                                    substituted = true;
+                                    continue;
+                                }
+                            }
+                        }
+                        (*newTiargs)[j] = objectSyntaxCopy(arg);
+                    }
+                    if (substituted)
+                    {
+                        auto newTi = new TemplateInstance(tinst.loc, tinst.tempinst.name, newTiargs);
+                        auto newTinst = new TypeInstance(tinst.loc, newTi);
+                        Loc loc = semanticLoc(*parameters);
+                        const errors = global.startGagging();
+                        Type tres = newTinst.typeSemantic(loc, sc);
+                        if (global.endGagging(errors) || tres.ty == Terror)
+                            tres = null;
+                        if (tres && tres.ty != Tinstance && tres.ty != Terror)
+                        {
+                            if (t.ty == Tvoid)
+                            {
+                                /* https://issues.dlang.org/show_bug.cgi?id=18486
+                                 * void from emptyArrayElement matches any
+                                 * resolved type.
+                                 */
+                                result = MATCH.convert;
+                                return;
+                            }
+                            result = deduceType(t, sc, tres, *parameters, *dedtypes, wm);
+                            return;
+                        }
+                    }
+                }
+            }
             if (t.ty != tparam.ty)
             {
                 if (Dsymbol sym = t.toDsymbol(sc))
@@ -7512,6 +7570,14 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                 {
                     Type tn = (cast(TypeNext)tparam).next;
                     result = deduceType(emptyArrayElement, sc, tn, *parameters, *dedtypes, wm);
+                    return;
+                }
+                /* https://issues.dlang.org/show_bug.cgi?id=18486
+                 * An empty array element matches any type parameter.
+                 */
+                if (e == emptyArrayElement)
+                {
+                    result = MATCH.convert;
                     return;
                 }
                 e.type.accept(this);
