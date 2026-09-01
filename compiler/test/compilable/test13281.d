@@ -8,13 +8,13 @@ TEST_OUTPUT:
 123L
 123LU
 123.5
-123.5F
+123.5f
 123.5L
 123.5i
-123.5Fi
+123.5fi
 123.5Li
 (123.5+5.5i)
-(123.5F+5.5Fi)
+(123.5f+5.5fi)
 (123.5L+5.5Li)
 ---
 */
@@ -51,12 +51,12 @@ version (GNU)
 else
 {
     static assert((123.5  ).stringof == "123.5");
-    static assert((123.5f ).stringof == "123.5F");
+    static assert((123.5f ).stringof == "123.5f");
     static assert((123.5L ).stringof == "123.5L");
     static assert((123.5i ).stringof == "123.5i");
-    static assert((123.5fi).stringof == "123.5Fi");
+    static assert((123.5fi).stringof == "123.5fi");
     static assert((123.5Li).stringof == "123.5Li");
     static assert((123.5 +5.5i ).stringof == "123.5 + 5.5i");
-    static assert((123.5f+5.5fi).stringof == "123.5F + 5.5Fi");
+    static assert((123.5f+5.5fi).stringof == "123.5f + 5.5fi");
     static assert((123.5L+5.5Li).stringof == "123.5L + 5.5Li");
 }

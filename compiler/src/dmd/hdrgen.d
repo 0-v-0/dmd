@@ -3231,14 +3231,60 @@ void floatToBuffer(Type type, const real_t value, ref OutBuffer buf, const bool 
     char[BUFFER_LEN] buffer = void;
     CTFloat.sprint(buffer.ptr, BUFFER_LEN, 'g', value);
     assert(strlen(buffer.ptr) < BUFFER_LEN);
-    if (allowHex)
+
+    // Determine if the type carries a suffix (f, L, i) and the maximum
+    // decimal digits needed for an exact round-trip of that type.
+    bool hasTypeSuffix = false;
+    int maxPrecision = 17;
+    if (type)
+    {
+        Type t = type.toBaseTypeNonSemantic();
+        switch (t.ty)
+        {
+        case Tfloat32:
+        case Timaginary32:
+        case Tcomplex32:
+            maxPrecision = 9;
+            hasTypeSuffix = true;
+            break;
+        case Tfloat80:
+        case Timaginary80:
+        case Tcomplex80:
+            maxPrecision = 21;
+            // L suffix is shared with long integers, so keep .0
+            // to avoid changing the meaning (e.g., 1.0L -> 1L = long)
+            break;
+        default:
+            break;
+        }
+        if (t.isImaginaryNonSemantic())
+            hasTypeSuffix = true;
+    }
+
+    // Check if the default-precision representation round-trips.
+    // If not, retry with enough precision for an exact round-trip
+    // (preferring decimal over hex float notation).
     {
         bool isOutOfRange;
         real_t r = CTFloat.parse(buffer.ptr, isOutOfRange);
-        //assert(!isOutOfRange); // test/compilable/test22725.c asserts here
-        if (r != value) // if exact duplication
-            CTFloat.sprint(buffer.ptr, BUFFER_LEN, 'a', value);
+        if (r != value)
+        {
+            CTFloat.sprint(buffer.ptr, BUFFER_LEN, 'g', value, maxPrecision);
+            r = CTFloat.parse(buffer.ptr, isOutOfRange);
+            if (r != value && allowHex)
+                CTFloat.sprint(buffer.ptr, BUFFER_LEN, 'a', value);
+        }
     }
+
+    // Remove trailing .0 added by CTFloat.sprint for types that
+    // already carry a suffix; the suffix makes the .0 redundant.
+    if (hasTypeSuffix)
+    {
+        size_t len = strlen(buffer.ptr);
+        if (len >= 2 && buffer.ptr[len - 2] == '.' && buffer.ptr[len - 1] == '0')
+            buffer.ptr[len - 2] = 0;
+    }
+
     buf.put(buffer.ptr);
     if (buffer.ptr[strlen(buffer.ptr) - 1] == '.')
         buf.remove(buf.length() - 1, 1);
@@ -3252,7 +3298,7 @@ void floatToBuffer(Type type, const real_t value, ref OutBuffer buf, const bool 
         case Tfloat32:
         case Timaginary32:
         case Tcomplex32:
-            buf.put('F');
+            buf.put('f');
             break;
         case Tfloat80:
         case Timaginary80:
@@ -3265,6 +3311,7 @@ void floatToBuffer(Type type, const real_t value, ref OutBuffer buf, const bool 
         if (t.isImaginaryNonSemantic())
             buf.put('i');
     }
+
 }
 
 void toCBuffer(const TemplateParameter tp, ref OutBuffer buf, ref HdrGenState hgs)

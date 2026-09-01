@@ -717,7 +717,7 @@ int ld_type(longdouble_soft x)
 // consider snprintf pure
 private extern(C) int snprintf(scope char* s, size_t size, scope const char* format, ...) pure @nogc nothrow;
 
-size_t ld_sprint(char* str, size_t size, int fmt, longdouble_soft x) @system
+size_t ld_sprint(char* str, size_t size, int fmt, longdouble_soft x, int precision = -1) @system
 {
     // ensure dmc compatible strings for nan and inf
     switch(ld_type(x))
@@ -730,10 +730,31 @@ size_t ld_sprint(char* str, size_t size, int fmt, longdouble_soft x) @system
         default:
             break;
     }
-
     // fmt is 'a','A','f' or 'g'
     if(fmt != 'a' && fmt != 'A')
     {
+        if (precision >= 0)
+        {
+            char[16] format;
+            int pos = 0;
+            format[pos++] = '%';
+            format[pos++] = '.';
+            char[10] revdigits;
+            int rpos = 0;
+            int temp = precision;
+            if (temp == 0)
+                revdigits[rpos++] = '0';
+            while (temp > 0)
+            {
+                revdigits[rpos++] = cast(char)('0' + temp % 10);
+                temp /= 10;
+            }
+            while (rpos > 0)
+                format[pos++] = revdigits[--rpos];
+            format[pos++] = cast(char)fmt;
+            format[pos] = 0;
+            return snprintf(str, size, format.ptr, ld_read(&x));
+        }
         char[3] format = ['%', cast(char)fmt, 0];
         return snprintf(str, size, format.ptr, ld_read(&x));
     }

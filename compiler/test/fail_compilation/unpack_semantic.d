@@ -6,7 +6,7 @@ fail_compilation/unpack_semantic.d(18): Error: right hand side of unpack declara
 fail_compilation/unpack_semantic.d(19): Error: incompatible number of components for unpack declaration (`2` vs. `3`)
 fail_compilation/unpack_semantic.d(22): Error: cannot specify `static` for individual components of an unpack declaration
 fail_compilation/unpack_semantic.d(23): Error: cannot specify `enum` for individual components of an unpack declaration
-fail_compilation/unpack_semantic.d(26): Error: cannot implicitly convert expression `3.0F` of type `float` to `int`
+fail_compilation/unpack_semantic.d(26): Error: cannot implicitly convert expression `3f` of type `float` to `int`
 fail_compilation/unpack_semantic.d(27): Error: cannot implicitly convert expression `7` of type `int` to `void*`
 ---
 */

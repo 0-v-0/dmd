@@ -181,16 +181,36 @@ extern (C++) struct CTFloat
     }
 
     @system
-    static int sprint(char* str, size_t size, char fmt, real_t x)
+    static int sprint(char* str, size_t size, char fmt, real_t x, int precision = -1)
     {
         version(CRuntime_Microsoft)
         {
-            auto len = cast(int) ld_sprint(str, size, fmt, longdouble_soft(x));
+            auto len = cast(int) ld_sprint(str, size, fmt, longdouble_soft(x), precision);
         }
         else
         {
-            char[4] sfmt = "%Lg\0";
-            sfmt[2] = fmt;
+            char[16] sfmt;
+            int spos = 0;
+            sfmt[spos++] = '%';
+            if (precision >= 0)
+            {
+                sfmt[spos++] = '.';
+                char[10] revdigits;
+                int rpos = 0;
+                int temp = precision;
+                if (temp == 0)
+                    revdigits[rpos++] = '0';
+                while (temp > 0)
+                {
+                    revdigits[rpos++] = cast(char)('0' + temp % 10);
+                    temp /= 10;
+                }
+                while (rpos > 0)
+                    sfmt[spos++] = revdigits[--rpos];
+            }
+            sfmt[spos++] = 'L';
+            sfmt[spos++] = fmt;
+            sfmt[spos] = 0;
             auto len = snprintf(str, size, sfmt.ptr, x);
         }
 

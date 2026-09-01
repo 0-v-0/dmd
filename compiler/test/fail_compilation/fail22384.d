@@ -15,7 +15,7 @@ fail_compilation/fail22384.d(34): Error: default initializer `4` is not represen
 fail_compilation/fail22384.d(34):        bitfield `x` default initializer must be a value between `-4..3`
 fail_compilation/fail22384.d(35): Error: default initializer `65` is not representable as bitfield type `int:7`
 fail_compilation/fail22384.d(35):        bitfield `y` default initializer must be a value between `-64..63`
-fail_compilation/fail22384.d(47): Error: cannot implicitly convert expression `4.2F` of type `float` to `int`
+fail_compilation/fail22384.d(47): Error: cannot implicitly convert expression `4.2f` of type `float` to `int`
 fail_compilation/fail22384.d(49): Error: default initializer `65` is not representable as bitfield type `int:7`
 fail_compilation/fail22384.d(49):        bitfield `j` default initializer must be a value between `-64..63`
 fail_compilation/fail22384.d(50): Error: cannot implicitly convert expression `42` of type `int` to `bool`

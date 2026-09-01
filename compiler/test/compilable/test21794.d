@@ -6,7 +6,7 @@ TEST_OUTPUT:
 0u
 0L
 0LU
-0.0F
+0f
 0.0
 0.0L
 ---
