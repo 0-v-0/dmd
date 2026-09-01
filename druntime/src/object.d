@@ -1705,7 +1705,7 @@ class TypeInfo_Class : TypeInfo
 
     override @property uint flags() nothrow pure const { return 1; }
 
-    override @property const(OffsetTypeInfo)[] offTi() nothrow pure const
+    override const(OffsetTypeInfo)[] offTi() nothrow pure const
     {
         return m_offTi;
     }

@@ -1162,6 +1162,15 @@ private int classFuncSemantic(ClassDeclaration cd, FuncDeclaration funcdecl,
                 eSink.error(funcdecl.loc, "%s `%s` cannot override `@safe` method `%s` with a `@system` attribute", funcdecl.kind, funcdecl.toPrettyChars,
                                fdv.toPrettyChars);
 
+            // https://issues.dlang.org/show_bug.cgi?id=18354
+            if (f.isProperty != vtf.isProperty)
+            {
+                if (vtf.isProperty)
+                    eSink.error(funcdecl.loc, "%s `%s` cannot override `@property` method `%s` with a non-`@property` attribute", funcdecl.kind, funcdecl.toPrettyChars, fdv.toPrettyChars);
+                else
+                    eSink.error(funcdecl.loc, "%s `%s` cannot override non-`@property` method `%s` with a `@property` attribute", funcdecl.kind, funcdecl.toPrettyChars, fdv.toPrettyChars);
+            }
+
             if (fdc.toParent() == parent)
             {
                 //printf("vi = %d,\tthis = %p %s %s @ [%s]\n\tfdc  = %p %s %s @ [%s]\n\tfdv  = %p %s %s @ [%s]\n",
