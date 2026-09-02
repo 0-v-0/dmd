@@ -4053,7 +4053,13 @@ MATCH leastAsSpecialized(Scope* sc, TemplateDeclaration td, TemplateDeclaration 
         // when comparing against a template with fewer parameters.
         // See: https://issues.dlang.org/show_bug.cgi?id=18336
         if (tp.hasDefaultArg() && !tp.specialization())
+        {
+            RootObject p = tp.dummyArg();
+            if (!p)
+                break;
+            tiargs.push(p);
             continue;
+        }
         RootObject p = tp.dummyArg();
         if (!p) //TemplateTupleParameter
             break;
