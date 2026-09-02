@@ -80,7 +80,7 @@ struct Floats final
     double inf;
     double nInf;
     Floats() :
-        f(1.23F),
+        f(1.23f),
         d(4.56),
         r(7.89L),
         nan(NAN),
