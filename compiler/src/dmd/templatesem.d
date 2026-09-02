@@ -4047,7 +4047,6 @@ MATCH leastAsSpecialized(Scope* sc, TemplateDeclaration td, TemplateDeclaration 
     {
         if (tp.dependent)
             break;
-        // Skip parameters that have a default value but no specialization.
         RootObject p = tp.dummyArg();
         if (!p) //TemplateTupleParameter
             break;
