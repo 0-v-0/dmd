@@ -10169,9 +10169,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                         // Check if the function has non-default parameters
                         auto tfd = fd.type.toTypeFunction();
                         bool requiresArgs = false;
-                        foreach (p; tfd.parameterList)
+                        foreach (i, p; tfd.parameterList)
                         {
-                            if (!(p.storageClass & STC.default_))
+                            if (!p.defaultArg)
                             {
                                 requiresArgs = true;
                                 break;
