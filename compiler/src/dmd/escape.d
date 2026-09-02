@@ -22,7 +22,7 @@ import dmd.astenums;
 import dmd.declaration;
 import dmd.dscope;
 import dmd.dsymbol;
-import dmd.errors;
+import dmd.errors : previewSupplementalFunc, previewErrorFunc;
 import dmd.expression;
 import dmd.expressionsem;
 import dmd.func;
@@ -2078,42 +2078,6 @@ void finishScopeParamInference(FuncDeclaration funcdecl, ref TypeFunction f)
         f.isScopeQual = funcdecl.vthis.isScope();
         f.isScopeInferred = !!(funcdecl.vthis.storage_class & STC.scopeinferred);
     }
-
-    /+ Disable const inference: breaks std/traits.d mangling (DF → DxF) in Phobos
-    if (funcdecl.isFuncLiteralDeclaration() && funcdecl.outerVars.length && !f.mod)
-    {
-        MOD mod = 0;
-        if (!hasContextModWrite(funcdecl))
-        {
-            // Skip const inference if any outer var has inout (wild) type,
-            // as inout already handles the const/mutable/immutable context.
-            mod = MODFlags.const_;
-            bool allImmutable = true;
-            foreach (v; funcdecl.outerVars)
-            {
-                if (!v.type.isImmutable())
-                {
-                    allImmutable = false;
-                    break;
-                }
-            }
-            if (allImmutable)
-                mod = MODFlags.immutable_;
-        }
-
-        if (mod)
-        {
-            if (funcdecl.type == f)
-                f = cast(TypeFunction)f.copy();
-            f.mod = mod;
-            if (funcdecl.vthis)
-                funcdecl.vthis.type = funcdecl.vthis.type.addMod(mod);
-        }
-    }
-    +/
-
-    // Only needed during attribute inference; discard the bookkeeping once done.
-    clearContextModWrite(funcdecl);
 }
 
 /************************************************

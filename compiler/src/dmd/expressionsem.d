@@ -43,7 +43,6 @@ import dmd.dinterpret;
 import dmd.dmodule;
 import dmd.dstruct;
 import dmd.dtemplate;
-import dmd.errors;
 import dmd.errorsink;
 import dmd.enumsem;
 import dmd.escape;
@@ -18706,9 +18705,6 @@ private Modifiable checkModify(Declaration d, Loc loc, Scope* sc, Expression e1,
         return Modifiable.initialization;
 
     auto eSink = global.errorSink;
-
-    if (v && sc.func && sc.func.isFuncLiteralDeclaration() && d.parent && d.parent != sc.parent)
-        markContextModWrite(sc.func);
 
     if (d.isParameter() || d.isResult())
     {

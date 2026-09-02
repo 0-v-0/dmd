@@ -32,7 +32,6 @@ import dmd.dstruct;
 import dmd.dsymbol;
 import dmd.dsymbolsem;
 import dmd.dtemplate;
-import dmd.errors;
 import dmd.errorsink;
 import dmd.escape;
 import dmd.expression;
@@ -4356,23 +4355,6 @@ extern (D) bool checkNestedReference(VarDeclaration vd, Scope* sc, Loc loc)
     }
 
     return false;
-}
-
-private bool[FuncDeclaration] contextModWriteFlags;
-
-extern (D) void markContextModWrite(FuncDeclaration fd)
-{
-    contextModWriteFlags[fd] = true;
-}
-
-extern (D) bool hasContextModWrite(FuncDeclaration fd)
-{
-    return (fd in contextModWriteFlags) !is null;
-}
-
-extern (D) void clearContextModWrite(FuncDeclaration fd)
-{
-    contextModWriteFlags.remove(fd);
 }
 
 /**********************
