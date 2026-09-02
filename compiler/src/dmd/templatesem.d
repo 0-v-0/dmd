@@ -4048,18 +4048,6 @@ MATCH leastAsSpecialized(Scope* sc, TemplateDeclaration td, TemplateDeclaration 
         if (tp.dependent)
             break;
         // Skip parameters that have a default value but no specialization.
-        // They don't contribute to the specialization ordering, and including
-        // their dummy args as extra template arguments can cause false ambiguity
-        // when comparing against a template with fewer parameters.
-        // See: https://issues.dlang.org/show_bug.cgi?id=18336
-        if (tp.hasDefaultArg() && !tp.specialization())
-        {
-            RootObject p = tp.dummyArg();
-            if (!p)
-                break;
-            tiargs.push(p);
-            continue;
-        }
         RootObject p = tp.dummyArg();
         if (!p) //TemplateTupleParameter
             break;
