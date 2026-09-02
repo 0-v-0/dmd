@@ -7067,7 +7067,7 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                     result = MATCH.constant;
                     return;
                 }
-                if (MODimplicitConv(tparam.mod, t.mod))
+                if (MODimplicitConv(t.mod, tparam.mod) || MODimplicitConv(tparam.mod, t.mod))
                 {
                     result = MATCH.constant;
                     return;
