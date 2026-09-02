@@ -10153,6 +10153,50 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 return;
             }
         }
+        // Issue 18637: If opDispatch returned a function template that
+        // requires runtime arguments, try alias this resolution instead
+        // of treating it as a property getter.
+        if (e)
+        {
+            if (auto dve = e.isDotVarExp())
+            {
+                if (auto fd = dve.var.isFuncDeclaration())
+                {
+                    if (fd.parent && fd.parent.isTemplateInstance() &&
+                        fd.parent.isTemplateInstance().tempdecl &&
+                        fd.parent.isTemplateInstance().tempdecl.ident == Id.opDispatch)
+                    {
+                        // Check if the function has non-default parameters
+                        auto tfd = fd.type.toTypeFunction();
+                        bool requiresArgs = false;
+                        foreach (p; tfd.parameterList)
+                        {
+                            if (!(p.storageClass & STC.default_))
+                            {
+                                requiresArgs = true;
+                                break;
+                            }
+                        }
+                        if (requiresArgs)
+                        {
+                            if (auto alias_e = resolveAliasThis(sc, exp.e1, true))
+                            {
+                                if (alias_e != exp.e1)
+                                {
+                                    auto die = new DotIdExp(exp.loc, alias_e, exp.ident);
+                                    auto ae = die.dotIdSemanticProp(sc, true);
+                                    if (ae && ae.op != EXP.error)
+                                    {
+                                        result = ae;
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if (!e) // if failed to find the property
         {
             /* If ident is not a valid property, rewrite:
