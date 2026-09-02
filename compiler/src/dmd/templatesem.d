@@ -7060,7 +7060,7 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                         Type tres = newTinst.typeSemantic(loc, sc);
                         if (global.endGagging(errors) || tres.ty == Terror)
                             tres = null;
-                        if (tres && tres.ty != Tinstance && tres.ty != Terror)
+                        if (tres && tres.ty != Tinstance && tres.ty != Terror && t.ty != Tinstance)
                         {
                             if (t.ty == Tvoid)
                             {
