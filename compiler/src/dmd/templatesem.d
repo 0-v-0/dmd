@@ -7056,25 +7056,6 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                 return;
             }
 
-            // https://issues.dlang.org/show_bug.cgi?id=17777
-            // Check type qualifiers when matching same type kind with
-            // different modifiers. Previously, is(Q == immutable(T!X), X)
-            // would incorrectly match mutable T!arg.
-            if (t.mod != tparam.mod)
-            {
-                if (wm && t.deduceWild(tparam, false))
-                {
-                    result = MATCH.constant;
-                    return;
-                }
-                if (MODimplicitConv(t.mod, tparam.mod) || MODimplicitConv(tparam.mod, t.mod))
-                {
-                    result = MATCH.constant;
-                    return;
-                }
-                goto Lnomatch;
-            }
-
         Lexact:
             result = MATCH.exact;
             return;
