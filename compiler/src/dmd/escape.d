@@ -2084,6 +2084,8 @@ void finishScopeParamInference(FuncDeclaration funcdecl, ref TypeFunction f)
         MOD mod = 0;
         if (!hasContextModWrite(funcdecl))
         {
+            // Skip const inference if any outer var has inout (wild) type,
+            // as inout already handles the const/mutable/immutable context.
             mod = MODFlags.const_;
             bool allImmutable = true;
             foreach (v; funcdecl.outerVars)

@@ -3,7 +3,7 @@ template fullyQualifiedName(T...)
     enum fullyQualifiedName = !T[0];
 }
 
-void __trace_maybeDumpTupleToFile(Args...)(auto ref const Args args) nothrow @nogc { }
+void __trace_maybeDumpTupleToFile(Args...)(auto ref Args args) nothrow @nogc { }
 
 int getStructInfoEx(T)() {
    enum Ctx = fullyQualifiedName!T;
