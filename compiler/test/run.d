@@ -561,7 +561,7 @@ string[string] getEnvironment()
         env["SEP"] = `\`;
         auto druntimePath = environment.get("DRUNTIME_PATH", testPath(`..\..\druntime`));
         auto phobosPath = environment.get("PHOBOS_PATH", testPath(`..\..\..\phobos`));
-        auto druntimeLibPath = buildPath(druntimePath, "generated", os, build, model);
+        auto druntimeLibPath = buildPath(testPath(`..\..`), "generated", os, build, model);
         auto phobosLibPath = buildPath(phobosPath, "generated", os, build, model);
         env["DFLAGS"] = `-I"%s\import" -I"%s"`.format(druntimePath, phobosPath);
         env["LIB"] = druntimeLibPath ~ ";" ~ phobosLibPath ~ ";" ~ phobosPath ~ ";" ~ environment.get("LIB");
@@ -574,7 +574,7 @@ string[string] getEnvironment()
         env["SEP"] = "/";
         auto druntimePath = environment.get("DRUNTIME_PATH", testPath(`../../druntime`));
         auto phobosPath = environment.get("PHOBOS_PATH", testPath(`../../../phobos`));
-        auto druntimeLibPath = buildPath(druntimePath, "generated", os, build, model);
+        auto druntimeLibPath = buildPath(testPath(`../..`), "generated", os, build, model);
         auto phobosLibPath = buildPath(phobosPath, "generated", os, build, model);
 
         // default to PIC, use PIC=1/0 to en-/disable PIC.
