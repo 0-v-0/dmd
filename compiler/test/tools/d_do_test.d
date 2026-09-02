@@ -1168,10 +1168,14 @@ private string generatedLibDir(const ref EnvData envData)
 private string druntimeDefaultLibArgs(const ref EnvData envData)
 {
     if (envData.os == "windows")
-        return `-defaultlib=druntime`;
+        return null; // druntime.lib may not exist for all models
 
     if (envData.sharedBuild)
         return `-defaultlib=libdruntime.so -L-rpath=` ~ generatedLibDir(envData);
+
+    // macOS ld doesn't support -Bstatic/-Bdynamic that DMD emits for .a libs
+    if (envData.os == "osx")
+        return null;
 
     return `-defaultlib=libdruntime.a`;
 }
