@@ -5956,7 +5956,7 @@ void functionResolve(ref MatchAccumulator m, Dsymbol dstart, Loc loc, Scope* sc,
          * both functions are equally good and the tiebreaker should
          * not change existing behavior (fixes hospital.d regression).
          */
-        if (m.last < MATCHexact)
+        if (m.last < MATCH.exact)
         {
             auto tf_last = m.lastf.type.toTypeFunction();
             auto tf_curr = tf;
