@@ -1898,18 +1898,31 @@ MATCH implicitConvTo(Type from, Type to)
         MATCH m = implicitPointerConv(from.next.isTypeFunction(), toDg.next);
         if (m == MATCH.nomatch)
         {
+            // Issue 18175: Allow const delegate to convert to mutable delegate
+            // when the function parameters are covariant.
             auto fromTf = from.next.isTypeFunction();
-            if (fromTf && toDg.next && toDg.next.mod == 0 &&
-                (fromTf.isConst() || fromTf.isImmutable()))
+            if (fromTf && fromTf.isConst() && toDg.next && toDg.next !is null)
             {
-                auto tmp = cast(TypeFunction)fromTf.copy();
-                tmp.mod = 0;
-                if (tmp.covariant(toDg.next) == Covariant.yes)
-                    return MATCH.convert;
+                auto toTf = toDg.next.isTypeFunction();
+                if (toTf && toTf.parameterList.length == fromTf.parameterList.length)
+                {
+                    bool paramsMatch = true;
+                    foreach (i, p1; fromTf.parameterList)
+                    {
+                        auto p2 = toTf.parameterList[i];
+                        if (!p1.type.implicitConvTo(p2.type))
+                        {
+                            paramsMatch = false;
+                            break;
+                        }
+                    }
+                    if (paramsMatch)
+                        return MATCH.convert;
+                }
             }
         }
 
-        // Retain the old behaviour
+        // Retain the old behaviour for this refactoring
         // Should probably be changed to constant to match function pointers
         if (m > MATCH.convert)
             return MATCH.convert;
