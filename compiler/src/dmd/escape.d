@@ -2079,13 +2079,6 @@ void finishScopeParamInference(FuncDeclaration funcdecl, ref TypeFunction f)
         f.isScopeInferred = !!(funcdecl.vthis.storage_class & STC.scopeinferred);
     }
 
-    // Issue #18175: Revert const/immutable inference for function literals.
-    // The const inference is too aggressive and breaks existing code:
-    // - Changes delegate type mangling (DF → DxF)
-    // - Breaks template matching with 'auto ref const Args'
-    // - Breaks std/traits.d type trait static asserts
-    // TODO: Re-enable with proper guards to avoid breaking existing code.
-    /*
     if (funcdecl.isFuncLiteralDeclaration() && funcdecl.outerVars.length && !f.mod)
     {
         MOD mod = 0;
@@ -2114,7 +2107,6 @@ void finishScopeParamInference(FuncDeclaration funcdecl, ref TypeFunction f)
                 funcdecl.vthis.type = funcdecl.vthis.type.addMod(mod);
         }
     }
-    */
 
     // Only needed during attribute inference; discard the bookkeeping once done.
     clearContextModWrite(funcdecl);

@@ -512,10 +512,10 @@ void test9148d() pure
 void test9148e()
 {
     int x;
-    static assert(is(typeof((int a){ return a + x; }) == int delegate(int) pure nothrow @nogc @safe));
+    static assert(is(typeof((int a){ return a + x; }) == int delegate(int) const pure nothrow @nogc @safe));
 
     auto dg = (int a){ return a + x; };
-    static assert(is(typeof(dg) == int delegate(int) pure nothrow @nogc @safe));
+    static assert(is(typeof(dg) == int delegate(int) const pure nothrow @nogc @safe));
 }
 
 /***************************************************/
