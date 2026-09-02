@@ -2,7 +2,7 @@
 
 module issue18175;
 
-void call(void delegate(int i) const cb) {
+void call(void delegate(int i) cb) {
     cb(42);
 }
 

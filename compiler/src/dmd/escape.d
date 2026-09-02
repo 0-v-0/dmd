@@ -2079,6 +2079,7 @@ void finishScopeParamInference(FuncDeclaration funcdecl, ref TypeFunction f)
         f.isScopeInferred = !!(funcdecl.vthis.storage_class & STC.scopeinferred);
     }
 
+    /+ Disable const inference: breaks std/traits.d mangling (DF → DxF) in Phobos
     if (funcdecl.isFuncLiteralDeclaration() && funcdecl.outerVars.length && !f.mod)
     {
         MOD mod = 0;
@@ -2109,6 +2110,7 @@ void finishScopeParamInference(FuncDeclaration funcdecl, ref TypeFunction f)
                 funcdecl.vthis.type = funcdecl.vthis.type.addMod(mod);
         }
     }
+    +/
 
     // Only needed during attribute inference; discard the bookkeeping once done.
     clearContextModWrite(funcdecl);
