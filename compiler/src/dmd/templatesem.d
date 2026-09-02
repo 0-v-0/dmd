@@ -5952,7 +5952,11 @@ void functionResolve(ref MatchAccumulator m, Dsymbol dstart, Loc loc, Scope* sc,
          * E.g., int -> long is preferred over int -> ulong.
          * Note: unsigned -> signed (larger) is NOT penalized because
          * the value is always preserved (unsigned fits in larger signed).
+         * Guard: only apply for MATCHconvert or worse — at MATCHexact
+         * both functions are equally good and the tiebreaker should
+         * not change existing behavior (fixes hospital.d regression).
          */
+        if (m.last < MATCHexact)
         {
             auto tf_last = m.lastf.type.toTypeFunction();
             auto tf_curr = tf;
